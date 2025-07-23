@@ -139,24 +139,8 @@ dotnet test
     docker-compose down -v --remove-orphans || true
     ```
   - Build chỉ chạy khi có commit mới (SHA mới).
-- **Quyền Docker cho Jenkins:**
-  - Jenkins container phải mount đúng docker.sock và user jenkins phải thuộc group docker.
-  - Nếu gặp lỗi permission denied, cần:
-    - `chown root:docker /var/run/docker.sock`
-    - `usermod -aG docker jenkins`
-    - Restart Jenkins container
-- **Webhook trả về 302/403:**
-  - Kiểm tra CSRF Protection, quyền anonymous Jenkins, trigger job.
-- **Quy tắc đồng bộ codebase:**
-  - Mọi thay đổi phải đồng bộ ở tất cả các module liên quan.
-  - Đảm bảo không còn code trùng lặp, dư thừa, hoặc lỗi logic.
-  - Tách biệt rõ ràng HTML, CSS, JS.
-  - Kiểm tra và fix syntax/linter error tự động.
-  - Luôn test lại sau khi sửa, lặp lại fix/test cho đến khi hoàn toàn sạch lỗi.
 - **Lỗi conflict container:**
   - Đã tự động dọn dẹp trong Jenkinsfile, nếu vẫn lỗi thì xóa thủ công như trên.
-- **Jenkins không build khi push:**
-  - Kiểm tra webhook GitHub, trigger job, quyền Jenkins, ngrok.
 
 ## 📊 Monitoring & UI
 
