@@ -16,6 +16,11 @@ pipeline {
                 sh 'docker-compose build'
             }
         }
+        stage('Cleanup All Old Containers') {
+            steps {
+                sh 'docker rm -f grpc-server minio auth-postgres redis rabbitmq || true'
+            }
+        }
         stage('Deploy Containers') {
             steps {
                 sh 'docker-compose down -v --remove-orphans || true'
