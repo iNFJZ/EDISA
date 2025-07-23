@@ -21,13 +21,17 @@ namespace AuthService.Services
         {
             try
             {
-                var token = await _authService.RegisterAsync(new DTOs.RegisterDto
+                var (token, username, suggestedUsername, errorCode, message) = await _authService.RegisterAsync(new DTOs.RegisterWithAcceptDto
                 {
                     Email = request.Email,
                     Password = request.Password,
                     Username = request.Email
-                });
-                return new RegisterResponse { Success = true, Message = "Register successful" };
+                }, false);
+                if (!string.IsNullOrEmpty(errorCode))
+                {
+                    return new RegisterResponse { Success = false, Message = message, SuggestedUsername = suggestedUsername };
+                }
+                return new RegisterResponse { Success = true, Message = "Register successful", Token = token };
             }
             catch (System.Exception ex)
             {

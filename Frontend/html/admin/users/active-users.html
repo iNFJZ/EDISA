@@ -339,13 +339,13 @@
                         <option value="Banned" data-i18n="banned">Banned</option>
                       </select>
                     </div>
-                  </div>
-                </div> -->
+                  </div> -->
+                </div>
                 <div class="card-datatable table-responsive">
                   <table class="datatables-users table border-top">
                     <thead>
                       <tr>
-                        <th></th>
+                        <th data-i18n="avatar">Avatar</th>
                         <th data-i18n="username">Username</th>
                         <th data-i18n="fullName">Full Name</th>
                         <th data-i18n="email">Email</th>
@@ -659,8 +659,8 @@
               <div class="mb-3" id="edit-profilePicture-container" style="display: none;">
                 <label class="form-label" data-i18n="currentProfilePicture">Current Profile Picture</label>
                 <div class="d-flex align-items-center">
-                  <img id="edit-profilePicture-preview" src="/assets/img/avatars/default.png" alt="Profile Picture Preview" 
-                       style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 3px solid #e7e7ff; box-shadow: 0 2px 8px rgba(0,0,0,0.1);" />
+                  <!-- <img id="edit-profilePicture-preview" src="/assets/img/avatars/default.png" alt="Profile Picture Preview" 
+                       style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 3px solid #e7e7ff; box-shadow: 0 2px 8px rgba(0,0,0,0.1);" /> -->
                   <div class="ms-3">
                     <button type="button" class="btn btn-sm btn-outline-danger" id="remove-profile-picture" data-i18n="removePicture"><i class="ti ti-trash me-1"></i>Remove Picture</button>
                   </div>
@@ -686,10 +686,10 @@
           </div>
           <div class="modal-body">
             <div class="row">
-              <div class="col-md-3 text-center mb-3">
+              <div class="col-12 col-md-3 text-center mb-3">
                 <div class="d-flex flex-column align-items-center justify-content-center" style="gap: 12px;">
                   <div class="avatar avatar-xl d-flex align-items-center justify-content-center" style="width: 100px; height: 100px; margin: 0 auto;">
-                    <img id="view-user-avatar" src="/assets/img/avatars/default.png" class="rounded-circle" style="width: 100px; height: 100px;" />
+                    <!-- <img id="view-user-avatar" src="/assets/img/avatars/default.png" class="rounded-circle" style="width: 100px; height: 100px;" /> -->
                     <div id="avatar-fallback" class="avatar-initial rounded-circle" style="width: 100px; height: 100px; display: none; align-items: center; justify-content: center; font-weight: bold; font-size: 40px;"></div>
                   </div>
                   <div class="user-status-badge d-flex justify-content-center"></div>

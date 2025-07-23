@@ -52,7 +52,7 @@ window.addEventListener("DOMContentLoaded", async function () {
         if (data.language) {
           window.i18next.changeLanguage(data.language);
         }
-        safeShowToastr(
+        safeShowToastrMessage(
           window.i18next.t("googleLoginSuccessfulRedirecting"),
           "success",
         );
@@ -60,13 +60,15 @@ window.addEventListener("DOMContentLoaded", async function () {
           window.location.href = "/admin/";
         }, 1000);
       } else {
-        const errorMessage =
-          data.message || window.i18next.t("googleLoginFailed");
-        if (
+        const errorCode = data.errorCode || data.ErrorCode;
+        const errorMessage = data.message || window.i18next.t("googleLoginFailed");
+        if (errorCode === "ACCOUNT_NOT_VERIFIED" || errorMessage === "accountNotVerified") {
+          safeShowToastrMessage(window.i18next.t("accountNotVerified"), "error");
+        } else if (
           errorCode === "ACCOUNT_DELETED" ||
           errorMessage.includes("deleted")
         ) {
-          safeShowToastr(
+          safeShowToastrMessage(
             window.i18next.t("accountHasBeenDeletedContactSupport"),
             "error",
           );
@@ -74,16 +76,16 @@ window.addEventListener("DOMContentLoaded", async function () {
           errorCode === "ACCOUNT_BANNED" ||
           errorMessage.includes("banned")
         ) {
-          safeShowToastr(
+          safeShowToastrMessage(
             window.i18next.t("yourAccountHasBeenDeactivated"),
             "error",
           );
         } else {
-          safeShowToastr(window.i18next.t(errorMessage), "error");
+          safeShowToastrMessage(window.i18next.t(errorMessage), "error");
         }
       }
     } catch (err) {
-      safeShowToastr(
+      safeShowToastrMessage(
         window.i18next.t("googleLoginFailedPleaseTryAgain"),
         "error",
       );
@@ -109,13 +111,13 @@ window.addEventListener("DOMContentLoaded", async function () {
         if (res.ok && data.success && data.email) {
           email = data.email;
         } else {
-          safeShowToastr(
+          safeShowToastrMessage(
             data.message || window.i18next.t("invalidOrExpiredResetToken"),
             "error",
           );
         }
       } catch (err) {
-        safeShowToastr(
+        safeShowToastrMessage(
           window.i18next.t("failedToValidateResetToken"),
           "error",
         );
@@ -168,7 +170,7 @@ if (document.getElementById("login-form")) {
           ? window.i18next.t(e)
           : e,
       );
-      safeShowToastr(errorMsgs.join("\n"), "error");
+      safeShowToastrMessage(errorMsgs.join("\n"), "error");
       return;
     }
 
@@ -186,7 +188,7 @@ if (document.getElementById("login-form")) {
         if (data.language) {
           window.i18next.changeLanguage(data.language);
         }
-        safeShowToastr(
+        safeShowToastrMessage(
           window.i18next.t("loginSuccessfulRedirecting"),
           "success",
         );
@@ -197,46 +199,80 @@ if (document.getElementById("login-form")) {
         // Use error handler for localized error messages
         if (window.errorHandler && data) {
           window.errorHandler.handleApiError(data);
+        }
+        // Fallback to old error handling
+        if (data.errors && Array.isArray(data.errors)) {
+          safeShowToastrMessage(
+            data.errors.map((e) => window.i18next.t(e)).join(", "),
+            "error",
+          );
         } else {
-          // Fallback to old error handling
-          if (data.errors && Array.isArray(data.errors)) {
-            safeShowToastr(
-              data.errors.map((e) => window.i18next.t(e)).join(", "),
+          const errorCode = data.errorCode || data.ErrorCode;
+          const errorMessage = data.message || "loginFailed";
+          if (errorCode === "ACCOUNT_NOT_VERIFIED" || errorMessage === "accountNotVerified") {
+            safeShowToastrMessage(window.i18next.t("accountNotVerified"), "error");
+          } else if (errorMessage.includes("deleted")) {
+            safeShowToastrMessage(
+              window.i18next.t("accountHasBeenDeletedContactSupport"),
+              "error",
+            );
+          } else if (errorMessage.includes("banned")) {
+            safeShowToastrMessage(
+              window.i18next.t("yourAccountHasBeenDeactivated"),
+              "error",
+            );
+          } else if (
+            errorMessage.includes("Invalid email or password") ||
+            errorMessage.includes("Email hoặc mật khẩu không đúng") ||
+            errorMessage.includes(
+              "メールアドレスまたはパスワードが正しくありません",
+            )
+          ) {
+            safeShowToastrMessage(
+              window.i18next.t("invalidCredentials"),
               "error",
             );
           } else {
-            const errorMessage =
-              data.message || window.i18next.t("loginFailed");
-            if (errorMessage.includes("deleted")) {
-              safeShowToastr(
-                window.i18next.t("accountHasBeenDeletedContactSupport"),
-                "error",
-              );
-            } else if (errorMessage.includes("banned")) {
-              safeShowToastr(
-                window.i18next.t("yourAccountHasBeenDeactivated"),
-                "error",
-              );
-            } else if (
-              errorMessage.includes("Invalid email or password") ||
-              errorMessage.includes("Email hoặc mật khẩu không đúng") ||
-              errorMessage.includes(
-                "メールアドレスまたはパスワードが正しくありません",
-              )
-            ) {
-              safeShowToastr(
-                window.i18next.t("invalidCredentials"),
-                "error",
-              );
-            } else {
-              safeShowToastr(window.i18next.t(errorMessage), "error");
-            }
+            safeShowToastrMessage(window.i18next.t(errorMessage), "error");
           }
         }
       }
     } catch (err) {
-      safeShowToastr(window.i18next.t("loginFailedPleaseTryAgain"), "error");
+      safeShowToastrMessage(window.i18next.t("loginFailedPleaseTryAgain"), "error");
     }
+  });
+}
+
+// Thêm hàm showUsernameSuggestionModal
+function showUsernameSuggestionModal(original, suggested, onAccept, onReject) {
+  const msg = window.i18next.t("usernameSuggestionMessage").replace("{original}", original).replace("{suggested}", suggested);
+  const modalHtml = `
+    <div class="modal fade" id="usernameSuggestionModal" tabindex="-1" aria-labelledby="usernameSuggestionModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="usernameSuggestionModalLabel">${window.i18next.t("usernameSuggestionTitle")}</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">${msg}</div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-primary" id="acceptSuggestedUsernameBtn">${window.i18next.t("yes")}</button>
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">${window.i18next.t("no")}</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  $("body").append(modalHtml);
+  const modal = new bootstrap.Modal(document.getElementById("usernameSuggestionModal"));
+  modal.show();
+  $("#acceptSuggestedUsernameBtn").on("click", function () {
+    modal.hide();
+    $("#usernameSuggestionModal").remove();
+    onAccept();
+  });
+  $("#usernameSuggestionModal").on("hidden.bs.modal", function () {
+    $("#usernameSuggestionModal").remove();
+    if (onReject) onReject();
   });
 }
 
@@ -294,11 +330,11 @@ if (document.getElementById("register-form")) {
     }
 
     if (errors.length > 0) {
-      safeShowToastr(errors.filter(Boolean).join(", "), "error");
+      safeShowToastrMessage(errors.filter(Boolean).join(", "), "error");
       return;
     }
 
-    try {
+    async function submitRegister({ username, fullName, email, phoneNumber, password, language, acceptSuggestedUsername }) {
       const res = await fetch(`${API_BASE_URL}/Auth/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -309,13 +345,18 @@ if (document.getElementById("register-form")) {
           phoneNumber: phoneNumber || null,
           password,
           language,
+          acceptSuggestedUsername: !!acceptSuggestedUsername,
         }),
       });
-      const data = await res.json();
+      return res.json().then(data => ({ data, ok: res.ok }));
+    }
 
-      if (res.ok) {
+    try {
+      let registerResult = await submitRegister({ username, fullName, email, phoneNumber, password, language });
+      let { data, ok } = registerResult;
+      if (ok) {
         if (data.username && data.username !== username) {
-          safeShowToastr(
+          safeShowToastrMessage(
             window.i18next
               .t("usernameAutoGenerated")
               .replace("{original}", username)
@@ -323,7 +364,7 @@ if (document.getElementById("register-form")) {
             "error",
           );
         } else {
-          safeShowToastr(
+          safeShowToastrMessage(
             window.i18next.t("registrationSuccessfulCheckEmail"),
             "success",
           );
@@ -331,9 +372,35 @@ if (document.getElementById("register-form")) {
         setTimeout(() => {
           window.location.href = "/auth/verify-email.html";
         }, 1000);
+      } else if (data.suggestedUsername) {
+        showUsernameSuggestionModal(username, data.suggestedUsername, async () => {
+          let retryResult = await submitRegister({
+            username: data.suggestedUsername,
+            fullName,
+            email,
+            phoneNumber,
+            password,
+            language,
+            acceptSuggestedUsername: true,
+          });
+          let { data: retryData, ok: retryOk } = retryResult;
+          if (retryOk) {
+            safeShowToastrMessage(
+              window.i18next.t("registrationSuccessfulCheckEmail"),
+              "success",
+            );
+            setTimeout(() => {
+              window.location.href = "/auth/verify-email.html";
+            }, 1000);
+          } else {
+            safeShowToastrMessage(window.i18next.t(retryData.message || "registrationFailed"), "error");
+          }
+        }, () => {
+          $("#register-username").focus();
+        });
       } else {
         if (data.errors && Array.isArray(data.errors)) {
-          safeShowToastr(
+          safeShowToastrMessage(
             data.errors.map((e) => window.i18next.t(e)).join(", "),
             "error",
           );
@@ -341,25 +408,25 @@ if (document.getElementById("register-form")) {
           const errorMessage = data.message || "registrationFailed";
           if (errorMessage.includes("already exists")) {
             if (errorMessage.includes("Username")) {
-              safeShowToastr(
+              safeShowToastrMessage(
                 window.i18next
                   .t("usernameAlreadyExists")
                   .replace("{username}", username),
                 "error",
               );
             } else {
-              safeShowToastr(
+              safeShowToastrMessage(
                 window.i18next.t("userAlreadyExists").replace("{email}", email),
                 "error",
               );
             }
           } else {
-            safeShowToastr(window.i18next.t(errorMessage), "error");
+            safeShowToastrMessage(window.i18next.t(errorMessage), "error");
           }
         }
       }
     } catch (err) {
-      safeShowToastr(
+      safeShowToastrMessage(
         window.i18next.t("registrationFailedTryAgain"),
         "error",
       );
@@ -378,12 +445,12 @@ if (document.getElementById("forgot-password-form")) {
     const language = getCurrentLanguage();
 
     if (!email) {
-      safeShowToastr(window.i18next.t("emailRequired"), "error");
+      safeShowToastrMessage(window.i18next.t("emailRequired"), "error");
       return;
     }
 
     if (!isValidEmail(email)) {
-      safeShowToastr(
+      safeShowToastrMessage(
         window.i18next.t("pleaseEnterValidEmailAddress"),
         "error",
       );
@@ -400,7 +467,7 @@ if (document.getElementById("forgot-password-form")) {
 
       if (res.ok) {
         localStorage.setItem("pendingResetEmail", email);
-        safeShowToastr(
+        safeShowToastrMessage(
           window.i18next.t("resetEmailSentCheckEmail"),
           "success",
         );
@@ -409,13 +476,13 @@ if (document.getElementById("forgot-password-form")) {
         }, 1500);
         forgotPasswordForm.reset();
       } else {
-        safeShowToastr(
+        safeShowToastrMessage(
           window.i18next.t(data.message || "failedToSendResetEmail"),
           "error",
         );
       }
     } catch (err) {
-      safeShowToastr(
+      safeShowToastrMessage(
         window.i18next.t("failedToSendResetEmailTryAgain"),
         "error",
       );
@@ -435,17 +502,17 @@ if (document.getElementById("reset-password-form")) {
     const language = getCurrentLanguage();
 
     if (!password) {
-      safeShowToastr(window.i18next.t("passwordRequired"), "error");
+      safeShowToastrMessage(window.i18next.t("passwordRequired"), "error");
       return;
     }
 
     if (!isValidPassword(password)) {
-      safeShowToastr(window.i18next.t("passwordInvalid"), "error");
+      safeShowToastrMessage(window.i18next.t("passwordInvalid"), "error");
       return;
     }
 
     if (password !== confirmPassword) {
-      safeShowToastr(window.i18next.t("passwordsDoNotMatch"), "error");
+      safeShowToastrMessage(window.i18next.t("passwordsDoNotMatch"), "error");
       return;
     }
 
@@ -453,7 +520,7 @@ if (document.getElementById("reset-password-form")) {
     const token = urlParams.get("token");
 
     if (!token) {
-      safeShowToastr(window.i18next.t("invalidResetToken"), "error");
+      safeShowToastrMessage(window.i18next.t("invalidResetToken"), "error");
       return;
     }
 
@@ -471,7 +538,7 @@ if (document.getElementById("reset-password-form")) {
       const data = await res.json();
 
       if (res.ok) {
-        safeShowToastr(
+        safeShowToastrMessage(
           window.i18next.t("passwordResetSuccessRedirectLogin"),
           "success",
         );
@@ -480,13 +547,13 @@ if (document.getElementById("reset-password-form")) {
           window.location.href = "/auth/login.html";
         }, 2000);
       } else {
-        safeShowToastr(
+        safeShowToastrMessage(
           window.i18next.t(data.message || "passwordResetFailed"),
           "error",
         );
       }
     } catch (err) {
-      safeShowToastr(
+      safeShowToastrMessage(
         window.i18next.t("passwordResetFailedTryAgain"),
         "error",
       );
@@ -509,28 +576,28 @@ if (document.getElementById("change-password-form")) {
     const language = getCurrentLanguage();
 
     if (!currentPassword) {
-      safeShowToastr(window.i18next.t("currentPasswordRequired"), "error");
+      safeShowToastrMessage(window.i18next.t("currentPasswordRequired"), "error");
       return;
     }
 
     if (!newPassword) {
-      safeShowToastr(window.i18next.t("newPasswordRequired"), "error");
+      safeShowToastrMessage(window.i18next.t("newPasswordRequired"), "error");
       return;
     }
 
     if (!isValidPassword(newPassword)) {
-      safeShowToastr(window.i18next.t("newPasswordInvalid"), "error");
+      safeShowToastrMessage(window.i18next.t("newPasswordInvalid"), "error");
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      safeShowToastr(window.i18next.t("newPasswordsDoNotMatch"), "error");
+      safeShowToastrMessage(window.i18next.t("newPasswordsDoNotMatch"), "error");
       return;
     }
 
     const token = localStorage.getItem("authToken");
     if (!token) {
-      safeShowToastr(
+      safeShowToastrMessage(
         window.i18next.t("mustBeLoggedInToChangePassword"),
         "error",
       );
@@ -554,19 +621,19 @@ if (document.getElementById("change-password-form")) {
       const data = await res.json();
 
       if (res.ok) {
-        safeShowToastr(
+        safeShowToastrMessage(
           window.i18next.t("passwordChangedSuccessfully"),
           "success",
         );
         changePasswordForm.reset();
       } else {
-        safeShowToastr(
+        safeShowToastrMessage(
           window.i18next.t(data.message || "passwordChangeFailed"),
           "error",
         );
       }
     } catch (err) {
-      safeShowToastr(
+      safeShowToastrMessage(
         window.i18next.t("passwordChangeFailedTryAgain"),
         "error",
       );
@@ -607,7 +674,7 @@ window.addEventListener("DOMContentLoaded", async function () {
     }, 1000);
   }
   if (!token) {
-    safeShowToastr(window.i18next.t("invalidOrExpiredToken"), "error");
+    safeShowToastrMessage(window.i18next.t("invalidOrExpiredToken"), "error");
     if (countdownElem) countdownElem.textContent = "-";
     return;
   }
@@ -617,18 +684,18 @@ window.addEventListener("DOMContentLoaded", async function () {
     );
     const data = await res.json();
     if (res.ok && data.success) {
-      safeShowToastr(
+      safeShowToastrMessage(
         window.i18next.t("emailVerifiedSuccessfully"),
         "success",
       );
       startCountdown();
     } else {
       let msg = data.message || "invalidOrExpiredToken";
-      safeShowToastr(window.i18next.t(msg), "error");
+      safeShowToastrMessage(window.i18next.t(msg), "error");
       if (countdownElem) countdownElem.textContent = "-";
     }
   } catch (err) {
-    safeShowToastr(window.i18next.t("verifyEmailFailed"), "error");
+    safeShowToastrMessage(window.i18next.t("verifyEmailFailed"), "error");
     if (countdownElem) countdownElem.textContent = "-";
   }
 });
@@ -642,4 +709,13 @@ function safeShowToastr(msg, type = "success") {
     msg = window.i18next.t(msg);
   }
   window.showToastr(msg, type);
+}
+
+function safeShowToastrMessage(msg, type = "success") {
+  if (typeof window.i18next !== "undefined" && typeof window.i18next.t === "function") {
+    if (typeof msg === "string" && (!msg.trim().includes(" ") || msg === msg.toUpperCase())) {
+      msg = window.i18next.t(msg);
+    }
+  }
+  safeShowToastr(msg, type);
 }

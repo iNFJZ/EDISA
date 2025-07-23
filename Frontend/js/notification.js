@@ -19,6 +19,11 @@ if (typeof toastr !== "undefined") {
 }
 
 window.showToastr = function (message, type = "success", options = {}) {
+  if (typeof window.i18next !== "undefined" && typeof window.i18next.t === "function") {
+    if (typeof message === "string" && (!message.trim().includes(" ") || message === message.toUpperCase())) {
+      message = window.i18next.t(message);
+    }
+  }
   if (typeof toastr === "undefined") {
     console.error("Toastr is not loaded!");
     return;

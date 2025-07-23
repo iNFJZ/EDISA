@@ -91,7 +91,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         window.i18next && typeof window.i18next.t === "function"
           ? window.i18next.t("userNotFoundOrInvalidToken")
           : "User not found or invalid token.";
-      showToastr(msg, "error");
+      showToastrMessage(msg, "error");
       setTimeout(() => {
         window.location.href = "/auth/login.html";
       }, 1000);
@@ -151,13 +151,13 @@ document.addEventListener("DOMContentLoaded", async function () {
           await window.adminAuth.updateUserProfileDisplay();
         }
       } else {
-        showToastr(
+        showToastrMessage(
           data.message || window.i18next.t("failedToLoadUserInfo"),
           "error",
         );
       }
     } catch (e) {
-      showToastr(window.i18next.t("failedToLoadUserInfo"), "error");
+      showToastrMessage(window.i18next.t("failedToLoadUserInfo"), "error");
     }
   }
 
@@ -176,17 +176,17 @@ document.addEventListener("DOMContentLoaded", async function () {
       const file = this.files && this.files[0];
       if (file) {
         if (!file.type.startsWith("image/")) {
-          showToastr(window.i18next.t("pleaseSelectValidImageFile"), "error");
+          showToastrMessage(window.i18next.t("pleaseSelectValidImageFile"), "error");
           this.value = "";
           return;
         }
         if (file.size > 5 * 1024 * 1024) {
-          showToastr(window.i18next.t("imageSizeMustBeLessThan5MB"), "error");
+          showToastrMessage(window.i18next.t("imageSizeMustBeLessThan5MB"), "error");
           this.value = "";
           return;
         }
         if (file.size < 10 * 1024) {
-          showToastr(window.i18next.t("imageSizeIsVerySmall"), "warning");
+          showToastrMessage(window.i18next.t("imageSizeIsVerySmall"), "warning");
         }
         selectedImageFile = file;
         const reader = new FileReader();
@@ -221,13 +221,13 @@ document.addEventListener("DOMContentLoaded", async function () {
     .off("click", "#cropImageBtn")
     .on("click", "#cropImageBtn", function () {
       if (!cropper || !cropperReady) {
-        showToastr(window.i18next.t("cropperNotReady"), "error");
+        showToastrMessage(window.i18next.t("cropperNotReady"), "error");
         return;
       }
       let cropBox = cropper.getCropBoxData();
       const imageData = cropper.getImageData();
       if (!cropBox || cropBox.width <= 0 || cropBox.height <= 0) {
-        showToastr(window.i18next.t("cropAreaInvalid"), "error");
+        showToastrMessage(window.i18next.t("cropAreaInvalid"), "error");
         return;
       }
       if (
@@ -235,7 +235,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         (cropBox.width > imageData.naturalWidth ||
           cropBox.height > imageData.naturalHeight)
       ) {
-        showToastr(window.i18next.t("cropAreaLargerThanImage"), "error");
+        showToastrMessage(window.i18next.t("cropAreaLargerThanImage"), "error");
         return;
       }
       try {
@@ -271,7 +271,7 @@ document.addEventListener("DOMContentLoaded", async function () {
             window.i18next && typeof window.i18next.t === "function"
               ? window.i18next.t("profilePictureCroppedSuccessfully")
               : "Profile picture cropped successfully!";
-          showToastr(msg, "success");
+          showToastrMessage(msg, "success");
           if (window.adminAuth) {
             window.adminAuth.updateUserProfileDisplay();
           }
@@ -280,7 +280,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         window._editProfilePictureBase64 = null;
         $("#crop-avatar-preview, #edit-profilePicture-preview").attr("src", "");
         $("#edit-profilePicture-container, #profile-picture-preview").hide();
-        showToastr(
+        showToastrMessage(
           error.message || window.i18next.t("failedToCropImage"),
           "error",
         );
@@ -302,7 +302,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         cropper = null;
       }
 
-      showToastr(window.i18next.t("profilePictureRemoved"), "info");
+      showToastrMessage(window.i18next.t("profilePictureRemoved"), "info");
     });
 
   $(form)
@@ -312,13 +312,13 @@ document.addEventListener("DOMContentLoaded", async function () {
 
       const userId = $(form).data("userid");
       if (!userId) {
-        showToastr(window.i18next.t("userIdNotFound"), "error");
+        showToastrMessage(window.i18next.t("userIdNotFound"), "error");
         return;
       }
 
       const user = getCurrentUserInfo();
       if (!user) {
-        showToastr(window.i18next.t("userNotFound"), "error");
+        showToastrMessage(window.i18next.t("userNotFound"), "error");
         return;
       }
 
@@ -335,7 +335,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       if (dateOfBirth && dateOfBirth.trim() !== "") {
         const today = new Date();
         if (dateOfBirth > today.toISOString().split("T")[0]) {
-          showToastr(window.i18next.t("dateOfBirthCannotBeInFuture"), "error");
+          showToastrMessage(window.i18next.t("dateOfBirthCannotBeInFuture"), "error");
           return;
         }
         data.dateOfBirth = new Date(dateOfBirth).toISOString();
@@ -344,7 +344,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       if (window._editProfilePictureBase64) {
         data.profilePicture = window._editProfilePictureBase64;
       } else if (selectedImageFile) {
-        showToastr(
+        showToastrMessage(
           window.i18next.t("pleaseCropYourProfilePictureBeforeSaving"),
           "warning",
         );
@@ -386,7 +386,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       }
 
       if (!changed) {
-        showToastr(window.i18next.t("noInformationChanged"), "warning");
+        showToastrMessage(window.i18next.t("noInformationChanged"), "warning");
         return;
       }
 
@@ -395,7 +395,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       else if (phone && phone.startsWith("84")) phone = "0" + phone.slice(2);
 
       if (phone && !/^[0-9]{10,11}$/.test(phone)) {
-        showToastr(
+        showToastrMessage(
           window.i18next.t("phoneNumberMustBe10To11DigitsAndOnlyNumbers"),
           "error",
         );
@@ -403,13 +403,13 @@ document.addEventListener("DOMContentLoaded", async function () {
       }
 
       if (!data.fullName) {
-        showToastr(window.i18next.t("fullNameIsRequired"), "error");
+        showToastrMessage(window.i18next.t("fullNameIsRequired"), "error");
         return;
       }
 
       const token = getToken();
       if (!token) {
-        showToastr(window.i18next.t("authenticationRequired"), "error");
+        showToastrMessage(window.i18next.t("authenticationRequired"), "error");
         return;
       }
 
@@ -428,21 +428,21 @@ document.addEventListener("DOMContentLoaded", async function () {
               const messages = responseData.errors[field];
               if (Array.isArray(messages)) {
                 messages.forEach((msg) =>
-                  showToastr(`${field}: ${msg}`, "error"),
+                  showToastrMessage(`${field}: ${msg}`, "error"),
                 );
               } else {
-                showToastr(`${field}: ${messages}`, "error");
+                showToastrMessage(`${field}: ${messages}`, "error");
               }
             });
           } else if (responseData.message) {
-            showToastr(responseData.message, "error");
+            showToastrMessage(responseData.message, "error");
           } else {
-            showToastr(window.i18next.t("failedToUpdateProfile"), "error");
+            showToastrMessage(window.i18next.t("failedToUpdateProfile"), "error");
           }
           return;
         }
 
-        showToastr(window.i18next.t("profileUpdatedSuccessfully"), "success");
+        showToastrMessage(window.i18next.t("profileUpdatedSuccessfully"), "success");
 
         window._editProfilePictureBase64 = null;
         selectedImageFile = null;
@@ -459,7 +459,7 @@ document.addEventListener("DOMContentLoaded", async function () {
           await window.adminAuth.updateUserProfileDisplay();
         }
       } catch (err) {
-        showToastr(err.message || window.i18next.t("updateFailed"), "error");
+        showToastrMessage(err.message || window.i18next.t("updateFailed"), "error");
       }
     });
 
@@ -535,7 +535,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       // Check if checkbox is checked
       const checkbox = document.getElementById("accountActivation");
       if (!checkbox || !checkbox.checked) {
-        showToastr(
+        showToastrMessage(
           window.i18next.t("pleaseConfirmAccountDeactivation"),
           "warning",
         );
@@ -556,7 +556,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       if (result.isConfirmed) {
         const user = getCurrentUserInfo();
         if (!user) {
-          showToastr(window.i18next.t("userNotFound"), "error");
+          showToastrMessage(window.i18next.t("userNotFound"), "error");
           return;
         }
 
@@ -569,19 +569,19 @@ document.addEventListener("DOMContentLoaded", async function () {
           const data = await res.json();
 
           if (res.ok && data.success) {
-            showToastr(window.i18next.t("accountDeactivated"), "success");
+            showToastrMessage(window.i18next.t("accountDeactivated"), "success");
             localStorage.removeItem("authToken");
             setTimeout(() => {
               window.location.href = "/auth/login.html";
             }, 1500);
           } else {
-            showToastr(
+            showToastrMessage(
               data.message || window.i18next.t("deactivationFailed"),
               "error",
             );
           }
         } catch (err) {
-          showToastr(
+          showToastrMessage(
             err.message || window.i18next.t("deactivationFailed"),
             "error",
           );
@@ -621,7 +621,7 @@ document.addEventListener("DOMContentLoaded", async function () {
             cropBox = cropper.getCropBoxData();
             imageData = cropper.getImageData();
           } catch (e) {
-            showToastr(window.i18next.t("failedToInitializeCropper"), "error");
+            showToastrMessage(window.i18next.t("failedToInitializeCropper"), "error");
             $("#cropImageModal").modal("hide");
             return;
           }
@@ -678,7 +678,7 @@ document.addEventListener("DOMContentLoaded", async function () {
           }
           // Nếu ảnh quá nhỏ (bé hơn 100x100), báo lỗi và không cho crop
           if (imageData.naturalWidth < 100 || imageData.naturalHeight < 100) {
-            showToastr(window.i18next.t("imageTooSmall"), "error");
+            showToastrMessage(window.i18next.t("imageTooSmall"), "error");
             $("#cropImageModal").modal("hide");
             return;
           }
@@ -687,7 +687,7 @@ document.addEventListener("DOMContentLoaded", async function () {
             tryCount > 10 &&
             (!cropBox || cropBox.width <= 0 || cropBox.height <= 0)
           ) {
-            showToastr(window.i18next.t("failedToInitializeCropper"), "error");
+            showToastrMessage(window.i18next.t("failedToInitializeCropper"), "error");
             $("#cropImageModal").modal("hide");
             return;
           }
@@ -839,7 +839,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         if (cropperReady) updateAvatarPreview();
       },
       error: function () {
-        showToastr(window.i18next.t("failedToLoadImage"), "error");
+        showToastrMessage(window.i18next.t("failedToLoadImage"), "error");
         $("#cropImageModal").modal("hide");
       },
     });
@@ -1005,7 +1005,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       if (file.type.startsWith("image/")) {
         handleImageFile(file);
       } else {
-        showToastr(window.i18next.t("pleaseSelectValidImageFile"), "error");
+        showToastrMessage(window.i18next.t("pleaseSelectValidImageFile"), "error");
       }
     }
   });
@@ -1016,11 +1016,11 @@ document.addEventListener("DOMContentLoaded", async function () {
 
   function handleImageFile(file) {
     if (file.size > 5 * 1024 * 1024) {
-      showToastr(window.i18next.t("imageSizeMustBeLessThan5MB"), "error");
+      showToastrMessage(window.i18next.t("imageSizeMustBeLessThan5MB"), "error");
       return;
     }
     if (file.size < 10 * 1024) {
-      showToastr(window.i18next.t("imageSizeIsVerySmall"), "warning");
+      showToastrMessage(window.i18next.t("imageSizeIsVerySmall"), "warning");
     }
 
     selectedImageFile = file;

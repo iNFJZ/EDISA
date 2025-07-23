@@ -9,6 +9,7 @@ using System;
 using System.Text;
 using Microsoft.OpenApi.Models;
 using StackExchange.Redis;
+using Microsoft.Extensions.Logging;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -109,6 +110,20 @@ builder.Services.AddSwaggerGen(c =>
 builder.WebHost.UseUrls("http://0.0.0.0:80");
 
 var app = builder.Build();
+
+using (var scope = app.Services.CreateScope())
+{
+    var context = scope.ServiceProvider.GetRequiredService<UserDbContext>();
+    try
+    {
+        context.Database.Migrate();
+    }
+    catch (Exception ex)
+    {
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+        logger.LogError(ex, "An error occurred while migrating the database");
+    }
+}
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())

@@ -121,11 +121,27 @@ namespace EmailService.Services
         public string GenerateRestoreAccountContent(string username, DateTime restoredAt, string reason, string lang = null)
         {
             var template = LoadTemplate("restore-account", lang);
+            string localizedReason = reason;
+            if (reason == "Account restored by administrator")
+            {
+                switch ((lang ?? "en").ToLower())
+                {
+                    case "vi":
+                        localizedReason = "Tài khoản được quản trị viên khôi phục";
+                        break;
+                    case "ja":
+                        localizedReason = "管理者によってアカウントが復元されました";
+                        break;
+                    default:
+                        localizedReason = "Account restored by administrator";
+                        break;
+                }
+            }
             var placeholders = new Dictionary<string, string>
             {
                 { "Username", username },
                 { "RestoredAt", restoredAt.ToString("dd/MM/yyyy HH:mm:ss UTC") },
-                { "Reason", reason },
+                { "Reason", localizedReason },
                 { "LoginUrl", _config["Frontend:BaseUrl"] + "/auth/login.html" }
             };
             return ReplacePlaceholders(template, placeholders);

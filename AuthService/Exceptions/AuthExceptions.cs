@@ -93,6 +93,6 @@ namespace AuthService.Exceptions
 
     public class AccountNotVerifiedException : AuthException
     {
-        public AccountNotVerifiedException() : base("ACCOUNT_NOT_VERIFIED", "Account is not verified") { }
+        public AccountNotVerifiedException() : base("ACCOUNT_NOT_VERIFIED", "accountNotVerified") { }
     }
 } 

@@ -193,7 +193,7 @@ if (document.getElementById("layout-menu")) {
         return;
       }
       localize();
-      showToastr(window.i18next.t("languageChanged"), "success");
+      showToastrMessage("languageChanged", "success");
       updateLanguageDropdown(lang);
     });
   }
@@ -739,4 +739,18 @@ if (typeof $ !== "undefined") {
       });
     }
   });
+}
+
+function showToastrMessage(msg, type = "success") {
+  if (typeof window.i18next !== "undefined" && typeof window.i18next.t === "function") {
+    if (typeof msg === "string" && (!msg.trim().includes(" ") || msg === msg.toUpperCase())) {
+      msg = window.i18next.t(msg);
+    }
+  }
+  if (typeof window.showToastr === "function") {
+    window.showToastr(msg, type);
+  } else if (typeof toastr !== "undefined") {
+    toastr.clear();
+    toastr[type](msg);
+  }
 }

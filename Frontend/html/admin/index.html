@@ -417,7 +417,7 @@
               </h4>
               <!-- User Management Cards -->
               <div class="row g-4 mb-4">
-                <div class="col-sm-6 col-xl-3">
+                <div class="col-12 col-sm-6 col-xl-3">
                   <div class="card">
                     <div class="card-body">
                       <div
@@ -439,7 +439,7 @@
                     </div>
                   </div>
                 </div>
-                <div class="col-sm-6 col-xl-3">
+                <div class="col-12 col-sm-6 col-xl-3">
                   <div class="card">
                     <div class="card-body">
                       <div
@@ -461,7 +461,7 @@
                     </div>
                   </div>
                 </div>
-                <div class="col-sm-6 col-xl-3">
+                <div class="col-12 col-sm-6 col-xl-3">
                   <div class="card">
                     <div class="card-body">
                       <div
@@ -483,7 +483,7 @@
                     </div>
                   </div>
                 </div>
-                <div class="col-sm-6 col-xl-3">
+                <div class="col-12 col-sm-6 col-xl-3">
                   <div class="card">
                     <div class="card-body">
                       <div
@@ -517,7 +517,7 @@
                     </div>
                     <div class="card-body">
                       <div class="row">
-                        <div class="col-md-3 mb-3">
+                        <div class="col-12 col-md-3 mb-3">
                           <a
                             href="/admin/users/active-users.html"
                             class="btn btn-primary w-100"
@@ -528,7 +528,7 @@
                             >
                           </a>
                         </div>
-                        <div class="col-md-3 mb-3">
+                        <div class="col-12 col-md-3 mb-3">
                           <a
                             href="/admin/users/deactive-users.html"
                             class="btn btn-warning w-100"
@@ -539,7 +539,7 @@
                             >
                           </a>
                         </div>
-                        <div class="col-md-3 mb-3">
+                        <div class="col-12 col-md-3 mb-3">
                           <a
                             href="#"
                             id="export-all-users-btn"
@@ -551,7 +551,7 @@
                             >
                           </a>
                         </div>
-                        <div class="col-md-3 mb-3">
+                        <div class="col-12 col-md-3 mb-3">
                           <a
                             href="/admin/users/active-users.html#add"
                             class="btn btn-success w-100"
@@ -651,12 +651,6 @@
           bindLanguageDropdownHandlers();
         } else if (window.bindLanguageDropdownHandlers) {
           window.bindLanguageDropdownHandlers();
-        }
-        if (typeof showToastr === 'function') {
-          showToastr('Test Toastr on index.html', 'success');
-          console.log('showToastr called');
-        } else {
-          console.error('showToastr is not defined');
         }
       });
     </script>
