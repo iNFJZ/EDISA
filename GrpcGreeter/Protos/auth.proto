@@ -32,6 +32,8 @@ message RegisterRequest {
 message RegisterResponse {
   bool success = 1;
   string message = 2;
+  string suggestedUsername = 3;
+  string token = 4;
 }
 
 message LoginRequest {

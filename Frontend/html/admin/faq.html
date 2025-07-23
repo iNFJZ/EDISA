@@ -505,13 +505,6 @@
           await window.adminAuth.updateUserProfileDisplay();
           initializePageFunctionality();
         }
-        // Test Toastr
-        if (typeof showToastr === 'function') {
-          showToastr('Test Toastr on faq.html', 'success');
-          console.log('showToastr called');
-        } else {
-          console.error('showToastr is not defined');
-        }
       });
     </script>
   </body>

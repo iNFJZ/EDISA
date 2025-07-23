@@ -55,7 +55,7 @@ function openDeleteFileModal(file) {
       );
       if (!res.ok) throw new Error("Failed to delete file");
       if (typeof toastr !== "undefined")
-        toastr.success("File deleted successfully");
+        toastr.success(window.i18next.t("fileDeletedSuccessfully"));
       $("#deleteFileModal").modal("hide");
       fetchAndRenderFiles();
     } catch (err) {

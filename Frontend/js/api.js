@@ -32,11 +32,7 @@ export async function apiRequest(path, options = {}) {
       if (typeof window.i18next !== "undefined" && typeof window.i18next.t === "function") {
         message = window.i18next.t(message);
       }
-      if (typeof showToastr !== "undefined") {
-        showToastr(message, "error");
-      } else {
-        toastr.error(message);
-      }
+      showToastrMessage(message, "error");
     }
 
     if (res.status === 401) {
@@ -94,4 +90,13 @@ export async function statistics() {
 
 export async function logoutUser() {
   return apiRequest("/Auth/logout", { method: "POST" });
+}
+
+function showToastrMessage(msg, type = "success") {
+  if (typeof window.i18next !== "undefined" && typeof window.i18next.t === "function") {
+    if (typeof msg === "string" && (!msg.trim().includes(" ") || msg === msg.toUpperCase())) {
+      msg = window.i18next.t(msg);
+    }
+  }
+  showToastr(msg, type);
 }

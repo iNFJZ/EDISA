@@ -10,9 +10,11 @@ $(document).ready(function () {
   const $uploadBtn = $('#uploadBtn');
   const $desc = $('#fileDescription');
 
-  function safeToastr(type, msg) {
+  function safeToastrMessage(type, msg) {
     if (typeof window.i18next !== "undefined" && typeof window.i18next.t === "function") {
-      msg = window.i18next.t(msg);
+      if (typeof msg === "string" && (!msg.trim().includes(" ") || msg === msg.toUpperCase())) {
+        msg = window.i18next.t(msg);
+      }
     }
     if (typeof toastr !== "undefined") {
       toastr.clear();
@@ -59,11 +61,11 @@ $(document).ready(function () {
     e.preventDefault();
     const file = $fileInput[0].files[0];
     if (!file) {
-      safeToastr('error', 'chooseFile');
+      safeToastrMessage('error', 'chooseFile');
       return;
     }
     if (file.size > 100 * 1024 * 1024) {
-      safeToastr('error', 'maxFileSize');
+      safeToastrMessage('error', 'maxFileSize');
       return;
     }
     $uploadBtn.prop('disabled', true).text(window.i18next.t('uploading'));
@@ -87,10 +89,10 @@ $(document).ready(function () {
       $form[0].reset();
       $filePreviewContainer.hide();
       $filePreview.html('');
-      safeToastr('success', 'uploadSuccess');
+      safeToastrMessage('success', 'uploadSuccess');
       window.location.href = 'files.html';
     } catch (err) {
-      safeToastr('error', 'uploadFailed') + ': ' + (err.message || '');
+      safeToastrMessage('error', 'uploadFailed') + ': ' + (err.message || '');
     } finally {
       $uploadBtn.prop('disabled', false).text(window.i18next.t('upload'));
     }

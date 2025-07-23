@@ -42,6 +42,15 @@ public class UserService : IUserService
             users = await _userRepository.GetAllActiveAsync();
         }
 
+        if (query.IncludeDeleted && !string.IsNullOrEmpty(query.Status) && Enum.TryParse<UserStatus>(query.Status, true, out var userStatus) && userStatus == UserStatus.Banned)
+        {
+            users = users.Where(u => u.Status == UserStatus.Banned && u.DeletedAt != null).ToList();
+        }
+        else if (!string.IsNullOrEmpty(query.Status) && Enum.TryParse<UserStatus>(query.Status, true, out var userStatus2))
+        {
+            users = users.Where(u => u.Status == userStatus2).ToList();
+        }
+
         if (!string.IsNullOrEmpty(query.Search))
         {
             users = users.Where(u => 
@@ -49,16 +58,6 @@ public class UserService : IUserService
                 u.Email.Contains(query.Search, StringComparison.OrdinalIgnoreCase) ||
                 (u.FullName != null && u.FullName.Contains(query.Search, StringComparison.OrdinalIgnoreCase))
             ).ToList();
-        }
-
-        if (!string.IsNullOrEmpty(query.Status) && Enum.TryParse<UserStatus>(query.Status, true, out var userStatus))
-        {
-            users = users.Where(u => u.Status == userStatus).ToList();
-        }
-
-        if (!string.IsNullOrEmpty(query.Role))
-        {
-            users = users.Where(u => u.LoginProvider.Equals(query.Role, StringComparison.OrdinalIgnoreCase)).ToList();
         }
 
         if (!string.IsNullOrEmpty(query.SortBy))

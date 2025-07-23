@@ -88,7 +88,7 @@ class AdminAuth {
     }
     localStorage.removeItem("authToken");
     sessionStorage.clear();
-    safeToastr("success", window.i18next.t("loggedOutSuccessfully"));
+    safeToastrMessage("success", window.i18next.t("loggedOutSuccessfully"));
     setTimeout(() => {
       this.redirectToLogin();
     }, 500);
@@ -262,13 +262,13 @@ function loadActiveUsersTable() {
         },
       },
       columns: [
-        { data: null },
+        { data: null, defaultContent: "" }, // Avatar
         { data: "username" },
         { data: "fullName" },
         { data: "email" },
         { data: "status" },
         { data: "lastLoginAt" },
-        { data: null },
+        { data: null, defaultContent: "" }, // Actions
       ],
       columnDefs: getUserTableColumnDefs(),
       order: [[1, "asc"]],
@@ -278,7 +278,15 @@ function loadActiveUsersTable() {
       rowCallback: function (row, data) {
         $(row).attr("data-userid", data.id);
       },
+      initComplete: function () {
+        translateUserTableHeaders();
+      },
     });
+    if (window.i18next) {
+      window.i18next.on && window.i18next.on("languageChanged", function () {
+        translateUserTableHeaders();
+      });
+    }
   }
 }
 
@@ -395,6 +403,7 @@ function loadDeactiveUsersTable() {
       data: function (d) {
         return {
           includeDeleted: true,
+          status: "Banned",
           page: Math.floor(d.start / d.length) + 1,
           pageSize: d.length,
           search: d.search.value || null,
@@ -404,21 +413,13 @@ function loadDeactiveUsersTable() {
       },
       dataSrc: function (json) {
         if (!json || !Array.isArray(json.data)) return [];
-        const users = json.data.filter(
-          (u) => (u.status === 4 || u.status === "Banned") && u.deletedAt,
-        );
-        json.recordsTotal = users.length;
-        json.recordsFiltered = users.length;
-        return users;
+        return json.data;
       },
       dataFilter: function (data) {
         var json = JSON.parse(data);
-        if (json.data) {
-          const users = json.data.filter(
-            (u) => (u.status === 4 || u.status === "Banned") && u.deletedAt,
-          );
-          json.recordsTotal = users.length;
-          json.recordsFiltered = users.length;
+        if (json.pagination) {
+          json.recordsTotal = json.pagination.totalCount;
+          json.recordsFiltered = json.pagination.totalCount;
         }
         return JSON.stringify(json);
       },
@@ -427,13 +428,13 @@ function loadDeactiveUsersTable() {
       },
     },
     columns: [
-      { data: null }, // Avatar
+      { data: null, defaultContent: "" }, // Avatar
       { data: "username" },
       { data: "fullName" },
       { data: "email" },
       { data: "status" },
       { data: "deletedAt" },
-      { data: null }, // Actions
+      { data: null, defaultContent: "" }, // Actions
     ],
     columnDefs: getUserTableColumnDefs(true),
     createdRow: function (row, data) {
@@ -443,7 +444,15 @@ function loadDeactiveUsersTable() {
     dom: getUserTableDom(),
     language: getUserTableLanguage(),
     buttons: getUserTableButtons(),
+    initComplete: function () {
+      translateUserTableHeaders();
+    },
   });
+  if (window.i18next) {
+    window.i18next.on && window.i18next.on("languageChanged", function () {
+      translateUserTableHeaders();
+    });
+  }
 }
 
 function getUserTableColumnDefs(isDeactive) {
@@ -634,7 +643,7 @@ function getUserTableButtons() {
       );
 
       if (!countResponse.ok) {
-        safeToastr("error", window.i18next.t("failedToLoadData"));
+        safeToastrMessage("error", window.i18next.t("failedToLoadData"));
         return null;
       }
 
@@ -643,7 +652,7 @@ function getUserTableButtons() {
         countResult.pagination?.totalCount || countResult.totalCount || 0;
 
       if (totalCount === 0) {
-        safeToastr("warning", window.i18next.t("noDataToExport"));
+        safeToastrMessage("warning", window.i18next.t("noDataToExport"));
         return null;
       }
 
@@ -658,7 +667,7 @@ function getUserTableButtons() {
       );
 
       if (!response.ok) {
-        safeToastr("error", window.i18next.t("failedToLoadData"));
+        safeToastrMessage("error", window.i18next.t("failedToLoadData"));
         return null;
       }
 
@@ -675,7 +684,7 @@ function getUserTableButtons() {
       }
 
       if (!data || !data.length) {
-        safeToastr("warning", window.i18next.t("noDataToExport"));
+        safeToastrMessage("warning", window.i18next.t("noDataToExport"));
         return null;
       }
 
@@ -785,7 +794,7 @@ function getUserTableButtons() {
       return { headers, rows, allFields };
     } catch (error) {
       console.error("Export error:", error);
-      safeToastr("error", window.i18next.t("exportFailed"));
+      safeToastrMessage("error", window.i18next.t("exportFailed"));
       return null;
     }
   }
@@ -945,7 +954,7 @@ function getUserTableButtons() {
     if (typeof pdfMake !== "undefined") {
       pdfMake.createPdf(docDefinition).download(getExportFileName("pdf"));
     } else {
-      safeToastr("error", window.i18next.t("pdfLibraryNotLoaded"));
+      safeToastrMessage("error", window.i18next.t("pdfLibraryNotLoaded"));
     }
   }
 
@@ -1002,23 +1011,23 @@ function handleAddUser() {
   const password = formData.get("password")?.trim();
 
   if (!username) {
-    safeToastr("error", window.i18next.t("usernameRequired"));
+    safeToastrMessage("error", window.i18next.t("usernameRequired"));
     return;
   }
   if (!/^[a-zA-Z0-9]+$/.test(username)) {
-    safeToastr("error", window.i18next.t("usernameInvalidFormat"));
+    safeToastrMessage("error", window.i18next.t("usernameInvalidFormat"));
     return;
   }
   if (!fullName) {
-    safeToastr("error", window.i18next.t("fullNameRequired"));
+    safeToastrMessage("error", window.i18next.t("fullNameRequired"));
     return;
   }
   if (!email || !isValidEmail(email)) {
-    safeToastr("error", window.i18next.t("validEmailRequired"));
+    safeToastrMessage("error", window.i18next.t("validEmailRequired"));
     return;
   }
   if (!password || password.length < 6) {
-    safeToastr("error", window.i18next.t("passwordRequired"));
+    safeToastrMessage("error", window.i18next.t("passwordRequired"));
     return;
   }
   const data = { username, fullName, email, password };
@@ -1047,10 +1056,10 @@ function handleAddUser() {
     .then((res) => {
       console.log("Add user response:", res);
       if (res.success || res.id) {
-        safeToastr("clear");
+        safeToastrMessage("clear");
         let backendUsername = res.username || username;
         if (backendUsername !== username) {
-          safeToastr(
+          safeToastrMessage(
             "success",
             window.i18next
               .t("userAddedSuccessfullyWithNewUsername")
@@ -1058,11 +1067,11 @@ function handleAddUser() {
               .replace("{new}", backendUsername),
           );
         } else {
-          safeToastr("success", window.i18next.t("userAddedSuccessfully"));
+          safeToastrMessage("success", window.i18next.t("userAddedSuccessfully"));
         }
         form.reset();
         $("#offcanvasAddUser").offcanvas("hide");
-        safeToastr("clear");
+        safeToastrMessage("clear");
         const dt_user_table = $(".datatables-users");
         if (dt_user_table.length && $.fn.DataTable.isDataTable(dt_user_table)) {
           dt_user_table.DataTable().ajax.reload(null, false);
@@ -1090,8 +1099,8 @@ function handleAddUser() {
         (res.message && res.message.toLowerCase().includes("already exists")) ||
         (res.message && res.message.toLowerCase().includes("đã tồn tại"))
       ) {
-        safeToastr("clear");
-        safeToastr(
+        safeToastrMessage("clear");
+        safeToastrMessage(
           "error",
           window.i18next.t("userAlreadyExists").replace("{email}", email),
         );
@@ -1105,16 +1114,16 @@ function handleAddUser() {
           res.message.toLowerCase().includes("tên đăng nhập") &&
           res.message.toLowerCase().includes("tồn tại"))
       ) {
-        safeToastr("clear");
-        safeToastr(
+        safeToastrMessage("clear");
+        safeToastrMessage(
           "error",
           window.i18next
             .t("usernameAlreadyExists")
             .replace("{username}", username),
         );
       } else {
-        safeToastr("clear");
-        safeToastr("error", res.message || window.i18next.t("addUserFailed"));
+        safeToastrMessage("clear");
+        safeToastrMessage("error", res.message || window.i18next.t("addUserFailed"));
       }
     })
     .catch((error) => {
@@ -1125,24 +1134,24 @@ function handleAddUser() {
           error.errorCode === "EMAIL_ALREADY_EXISTS" ||
           error.errorCode === "USER_ALREADY_EXISTS"
         ) {
-          safeToastr(
+          safeToastrMessage(
             "error",
             window.i18next.t("userAlreadyExists").replace("{email}", email),
           );
         } else if (error.errorCode === "USERNAME_ALREADY_EXISTS") {
-          safeToastr(
+          safeToastrMessage(
             "error",
             window.i18next
               .t("usernameAlreadyExists")
               .replace("{username}", username),
           );
         } else if (error.message) {
-          safeToastr("error", error.message);
+          safeToastrMessage("error", error.message);
         } else {
-          safeToastr("error", window.i18next.t("addUserFailed"));
+          safeToastrMessage("error", window.i18next.t("addUserFailed"));
         }
       } else {
-        safeToastr("error", window.i18next.t("addUserFailed"));
+        safeToastrMessage("error", window.i18next.t("addUserFailed"));
       }
     });
 }
@@ -1162,17 +1171,17 @@ $(document).on(
     const file = this.files && this.files[0];
     if (file) {
       if (!file.type.startsWith("image/")) {
-        safeToastr("error", window.i18next.t("pleaseSelectValidImageFile"));
+        safeToastrMessage("error", window.i18next.t("pleaseSelectValidImageFile"));
         this.value = "";
         return;
       }
       if (file.size > 5 * 1024 * 1024) {
-        safeToastr("error", window.i18next.t("imageSizeMustBeLessThan5MB"));
+        safeToastrMessage("error", window.i18next.t("imageSizeMustBeLessThan5MB"));
         this.value = "";
         return;
       }
       if (file.size < 10 * 1024) {
-        safeToastr("warning", window.i18next.t("imageSizeIsVerySmall"));
+        safeToastrMessage("warning", window.i18next.t("imageSizeIsVerySmall"));
       }
       selectedImageFile = file;
       const reader = new FileReader();
@@ -1281,7 +1290,7 @@ function initializeCropper(imageElement, imageUrl) {
           return;
         }
         if (imageData.naturalWidth < 100 || imageData.naturalHeight < 100) {
-          safeToastr("error", window.i18next.t("imageIsTooSmall"));
+          safeToastrMessage("error", window.i18next.t("imageIsTooSmall"));
           $("#cropImageModal").modal("hide");
           return;
         }
@@ -1289,7 +1298,7 @@ function initializeCropper(imageElement, imageUrl) {
           tryCount > 10 &&
           (!cropBox || cropBox.width <= 0 || cropBox.height <= 0)
         ) {
-          safeToastr("error", window.i18next.t("failedToInitializeCropper"));
+          safeToastrMessage("error", window.i18next.t("failedToInitializeCropper"));
           $("#cropImageModal").modal("hide");
           return;
         }
@@ -1437,7 +1446,7 @@ function initializeCropper(imageElement, imageUrl) {
       if (cropperReady) updateAvatarPreview();
     },
     error: function () {
-      safeToastr("error", window.i18next.t("failedToLoadImage"));
+      safeToastrMessage("error", window.i18next.t("failedToLoadImage"));
       $("#cropImageModal").modal("hide");
     },
   });
@@ -1486,7 +1495,7 @@ $(document).on("drop", ".drag-drop-zone", function (e) {
     if (file.type.startsWith("image/")) {
       handleImageFile(file);
     } else {
-      safeToastr("error", window.i18next.t("pleaseSelectValidImageFile"));
+      safeToastrMessage("error", window.i18next.t("pleaseSelectValidImageFile"));
     }
   }
 });
@@ -1498,11 +1507,11 @@ $(document).on("click", ".drag-drop-zone", function () {
 // Handle image file
 function handleImageFile(file) {
   if (file.size > 5 * 1024 * 1024) {
-    safeToastr("error", window.i18next.t("imageSizeMustBeLessThan5MB"));
+    safeToastrMessage("error", window.i18next.t("imageSizeMustBeLessThan5MB"));
     return;
   }
   if (file.size < 10 * 1024) {
-    safeToastr("warning", window.i18next.t("imageSizeIsVerySmall"));
+    safeToastrMessage("warning", window.i18next.t("imageSizeIsVerySmall"));
   }
 
   selectedImageFile = file;
@@ -1630,13 +1639,13 @@ $("#cropImageModal").on("hidden.bs.modal", function () {
 
 $(document).on("click", "#cropImageBtn", function () {
   if (!cropper || !cropperReady) {
-    safeToastr("error", window.i18next.t("cropperNotReady"));
+    safeToastrMessage("error", window.i18next.t("cropperNotReady"));
     return;
   }
   let cropBox = cropper.getCropBoxData();
   const imageData = cropper.getImageData();
   if (!cropBox || cropBox.width <= 0 || cropBox.height <= 0) {
-    safeToastr("error", window.i18next.t("cropAreaInvalid"));
+    safeToastrMessage("error", window.i18next.t("cropAreaInvalid"));
     return;
   }
   if (
@@ -1644,7 +1653,7 @@ $(document).on("click", "#cropImageBtn", function () {
     (cropBox.width > imageData.naturalWidth ||
       cropBox.height > imageData.naturalHeight)
   ) {
-    safeToastr("error", window.i18next.t("cropAreaLargerThanImage"));
+    safeToastrMessage("error", window.i18next.t("cropAreaLargerThanImage"));
     return;
   }
   try {
@@ -1676,7 +1685,7 @@ $(document).on("click", "#cropImageBtn", function () {
     $("#edit-profilePicture-container, #profile-picture-preview").show();
     setTimeout(() => {
       $("#cropImageModal").modal("hide");
-      safeToastr(
+      safeToastrMessage(
         "success",
         window.i18next.t("profilePictureCroppedSuccessfully"),
       );
@@ -1685,7 +1694,7 @@ $(document).on("click", "#cropImageBtn", function () {
     window._editProfilePictureBase64 = null;
     $("#crop-avatar-preview, #edit-profilePicture-preview").attr("src", "");
     $("#edit-profilePicture-container, #profile-picture-preview").hide();
-    safeToastr("error", error.message || window.i18next.t("failedToCropImage"));
+    safeToastrMessage("error", error.message || window.i18next.t("failedToCropImage"));
   }
 });
 
@@ -1700,7 +1709,7 @@ $(document).on("click", "#remove-profile-picture", function () {
     cropper.destroy();
     cropper = null;
   }
-  safeToastr("info", window.i18next.t("profilePictureRemoved"));
+  safeToastrMessage("info", window.i18next.t("profilePictureRemoved"));
 });
 
 function handleUpdateUser(userId) {
@@ -1721,7 +1730,7 @@ function handleUpdateUser(userId) {
   if (dateOfBirth && dateOfBirth.trim() !== "") {
     const today = new Date();
     if (dateOfBirth > today.toISOString().split("T")[0]) {
-      safeToastr("error", window.i18next.t("dateOfBirthCannotBeInFuture"));
+      safeToastrMessage("error", window.i18next.t("dateOfBirthCannotBeInFuture"));
       return;
     }
     data.dateOfBirth = new Date(dateOfBirth).toISOString();
@@ -1729,7 +1738,7 @@ function handleUpdateUser(userId) {
   if (window._editProfilePictureBase64) {
     data.profilePicture = window._editProfilePictureBase64;
   } else if (selectedImageFile) {
-    safeToastr(
+    safeToastrMessage(
       "warning",
       window.i18next.t("pleaseCropYourProfilePictureBeforeSaving"),
     );
@@ -1780,13 +1789,13 @@ function handleUpdateUser(userId) {
     }
   }
   if (!changed) {
-    safeToastr("warning", window.i18next.t("noInformationChanged"));
+    safeToastrMessage("warning", window.i18next.t("noInformationChanged"));
     $("#editUserModal").modal("hide");
     return;
   }
   if (data.phoneNumber !== original.phoneNumber) {
     if (data.phoneNumber && !/^[0-9]{10,11}$/.test(data.phoneNumber)) {
-      safeToastr(
+      safeToastrMessage(
         "error",
         window.i18next.t("phoneNumberMustBe10To11DigitsAndOnlyNumbers"),
       );
@@ -1794,16 +1803,16 @@ function handleUpdateUser(userId) {
     }
   }
   if (!data.fullName) {
-    safeToastr("error", window.i18next.t("fullNameRequired"));
+    safeToastrMessage("error", window.i18next.t("fullNameRequired"));
     return;
   }
   if (!/^[a-zA-ZÀ-ỹ\s]+$/.test(data.fullName)) {
-    safeToastr("error", window.i18next.t("fullNameInvalidCharacters"));
+    safeToastrMessage("error", window.i18next.t("fullNameInvalidCharacters"));
     return;
   }
   const token = localStorage.getItem("authToken");
   if (!token) {
-    safeToastr("error", window.i18next.t("authenticationRequired"));
+    safeToastrMessage("error", window.i18next.t("authenticationRequired"));
     return;
   }
   fetch(`http://localhost:5050/api/User/${userId}`, {
@@ -1826,15 +1835,15 @@ function handleUpdateUser(userId) {
           Object.keys(responseData.errors).forEach((field) => {
             const messages = responseData.errors[field];
             if (Array.isArray(messages)) {
-              messages.forEach((msg) => safeToastr(`${field}: ${msg}`));
+              messages.forEach((msg) => safeToastrMessage(`${field}: ${msg}`));
             } else {
-              safeToastr(`${field}: ${messages}`);
+              safeToastrMessage(`${field}: ${messages}`);
             }
           });
         } else if (responseData.message) {
-          safeToastr("error", responseData.message);
+          safeToastrMessage("error", responseData.message);
         } else {
-          safeToastr("error", window.i18next.t("failedToUpdateUser"));
+          safeToastrMessage("error", window.i18next.t("failedToUpdateUser"));
         }
         throw new Error(
           responseData.message || responseData.error || `HTTP ${res.status}`,
@@ -1843,7 +1852,7 @@ function handleUpdateUser(userId) {
       return responseData;
     })
     .then((res) => {
-      safeToastr("success", window.i18next.t("userUpdatedSuccessfully"));
+      safeToastrMessage("success", window.i18next.t("userUpdatedSuccessfully"));
       $("#editUserModal").modal("hide");
 
       reloadCurrentPageData();
@@ -1863,13 +1872,13 @@ function handleUpdateUser(userId) {
         cropper = null;
       }
     })
-    .catch(() => safeToastr("error", window.i18next.t("failedToUpdateUser")));
+    .catch(() => safeToastrMessage("error", window.i18next.t("failedToUpdateUser")));
 }
 
 function deleteUser(userId) {
   const token = localStorage.getItem("authToken");
   if (!userId || !token) {
-    safeToastr("error", window.i18next.t("invalidRequest"));
+    safeToastrMessage("error", window.i18next.t("invalidRequest"));
     return;
   }
 
@@ -1902,14 +1911,14 @@ function deleteUser(userId) {
       return responseData;
     })
     .then((res) => {
-      safeToastr("success", window.i18next.t("userDeletedSuccessfully"));
+      safeToastrMessage("success", window.i18next.t("userDeletedSuccessfully"));
       $("#deleteUserModal").modal("hide");
       const userInfo = res.data || res;
 
       if (userInfo && currentUserInfo && userInfo.id == currentUserInfo.id) {
         localStorage.removeItem("authToken");
         sessionStorage.clear();
-        safeToastr("info", window.i18next.t("yourAccountHasBeenDeleted"));
+        safeToastrMessage("info", window.i18next.t("yourAccountHasBeenDeleted"));
         setTimeout(() => {
           window.location.href = "/admin/index.html";
         }, 1000);
@@ -1919,7 +1928,7 @@ function deleteUser(userId) {
     })
     .catch((error) => {
       console.error("Delete user error:", error);
-      safeToastr(
+      safeToastrMessage(
         "error",
         error.message || window.i18next.t("failedToDeleteUser"),
       );
@@ -1929,7 +1938,7 @@ function deleteUser(userId) {
 function restoreUser(userId) {
   const token = localStorage.getItem("authToken");
   if (!userId || !token) {
-    safeToastr("error", window.i18next.t("invalidRequest"));
+    safeToastrMessage("error", window.i18next.t("invalidRequest"));
     return;
   }
 
@@ -1945,7 +1954,7 @@ function restoreUser(userId) {
       return responseData;
     })
     .then((res) => {
-      safeToastr("success", window.i18next.t("userRestoredSuccessfully"));
+      safeToastrMessage("success", window.i18next.t("userRestoredSuccessfully"));
 
       $("#restoreUserModal").modal("hide");
 
@@ -1953,7 +1962,7 @@ function restoreUser(userId) {
     })
     .catch((error) => {
       console.error("Restore user error:", error);
-      safeToastr(
+      safeToastrMessage(
         "error",
         error.message || window.i18next.t("failedToRestoreUser"),
       );
@@ -1964,7 +1973,7 @@ function reloadCurrentPageData() {
   const currentPath = window.location.pathname;
   const currentPage = currentPath.split("/").pop();
 
-  safeToastr("clear");
+  safeToastrMessage("clear");
 
   setTimeout(() => {
     if (currentPage === "index.html" || currentPage === "") {
@@ -2001,7 +2010,7 @@ function openEditUserModal(userId) {
     .then((res) => {
       const user = res.data || res;
       if (!user || !user.id) {
-        safeToastr("error", window.i18next.t("userNotFound"));
+        safeToastrMessage("error", window.i18next.t("userNotFound"));
         return;
       }
       $("#editUserForm").data("userid", user.id);
@@ -2046,7 +2055,7 @@ function openEditUserModal(userId) {
       $("#editUserModal").modal("show");
     })
     .catch(() =>
-      safeToastr("error", window.i18next.t("failedToLoadUserInformation")),
+      safeToastrMessage("error", window.i18next.t("failedToLoadUserInformation")),
     );
 
   $("#editUserModal").on("hidden.bs.modal", function () {
@@ -2070,7 +2079,7 @@ function openViewUserModal(userId) {
     .then((res) => {
       const user = res.data || res;
       if (!user || !user.id) {
-        safeToastr("error", window.i18next.t("userNotFound"));
+        safeToastrMessage("error", window.i18next.t("userNotFound"));
         return;
       }
       $("#viewUserModal").data("userid", user.id);
@@ -2138,7 +2147,7 @@ function openViewUserModal(userId) {
       $("#viewUserModal").modal("show");
     })
     .catch((err) => {
-      safeToastr("error", window.i18next.t("failedToLoadUserInformation"));
+      safeToastrMessage("error", window.i18next.t("failedToLoadUserInformation"));
     });
 }
 window.openViewUserModal = openViewUserModal;
@@ -2370,7 +2379,7 @@ window.openDeleteUserModal = function (userId) {
     .then((res) => {
       const user = res.data || res;
       if (!user || !user.id) {
-        safeToastr("error", window.i18next.t("userNotFound"));
+        safeToastrMessage("error", window.i18next.t("userNotFound"));
         return;
       }
       $("#deleteUserModal").data("userid", user.id);
@@ -2417,7 +2426,7 @@ window.openDeleteUserModal = function (userId) {
       $("#deleteUserModal").modal("show");
     })
     .catch(() =>
-      safeToastr("error", window.i18next.t("failedToLoadUserInformation")),
+      safeToastrMessage("error", window.i18next.t("failedToLoadUserInformation")),
     );
 };
 
@@ -2431,7 +2440,7 @@ window.openRestoreUserModal = function (userId) {
     .then((res) => {
       const user = res.data || res;
       if (!user || !user.id) {
-        safeToastr("error", window.i18next.t("userNotFound"));
+        safeToastrMessage("error", window.i18next.t("userNotFound"));
         return;
       }
       $("#restoreUserModal").data("userid", user.id);
@@ -2478,7 +2487,7 @@ window.openRestoreUserModal = function (userId) {
       $("#restoreUserModal").modal("show");
     })
     .catch(() =>
-      safeToastr("error", window.i18next.t("failedToLoadUserInformation")),
+      safeToastrMessage("error", window.i18next.t("failedToLoadUserInformation")),
     );
 };
 
@@ -2523,7 +2532,7 @@ async function loadUserProfile() {
   try {
     const userInfo = window.adminAuth.getCurrentUserInfo();
     if (!userInfo) {
-      safeToastr("error", window.i18next.t("userInformationNotFound"));
+      safeToastrMessage("error", window.i18next.t("userInformationNotFound"));
       return;
     }
 
@@ -2559,11 +2568,11 @@ async function loadUserProfile() {
         $("#profile-picture-preview").attr("src", dataUrl).show();
       }
     } else {
-      safeToastr("error", window.i18next.t("failedToLoadUserProfile"));
+      safeToastrMessage("error", window.i18next.t("failedToLoadUserProfile"));
     }
   } catch (error) {
     console.error("Error loading user profile:", error);
-    safeToastr("error", window.i18next.t("errorLoadingUserProfile"));
+    safeToastrMessage("error", window.i18next.t("errorLoadingUserProfile"));
   }
 }
 
@@ -2571,7 +2580,7 @@ async function saveUserProfile(formData) {
   try {
     const userInfo = window.adminAuth.getCurrentUserInfo();
     if (!userInfo) {
-      safeToastr("error", window.i18next.t("userInformationNotFound"));
+      safeToastrMessage("error", window.i18next.t("userInformationNotFound"));
       return false;
     }
 
@@ -2588,11 +2597,11 @@ async function saveUserProfile(formData) {
     );
 
     if (response.ok) {
-      safeToastr("success", window.i18next.t("profileUpdatedSuccessfully"));
+      safeToastrMessage("success", window.i18next.t("profileUpdatedSuccessfully"));
       return true;
     } else {
       const errorData = await response.json();
-      safeToastr(
+      safeToastrMessage(
         "error",
         errorData.message || window.i18next.t("failedToUpdateProfile"),
       );
@@ -2600,7 +2609,7 @@ async function saveUserProfile(formData) {
     }
   } catch (error) {
     console.error("Error saving user profile:", error);
-    safeToastr("error", window.i18next.t("errorSavingProfile"));
+    safeToastrMessage("error", window.i18next.t("errorSavingProfile"));
     return false;
   }
 }
@@ -2617,10 +2626,10 @@ function loadUserSettings() {
       window.i18next.changeLanguage(settings.language);
     }
     $("#settings-darkmode").prop("checked", settings.darkMode === true);
-    safeToastr("success", window.i18next.t("settingsLoaded"));
+    safeToastrMessage("success", window.i18next.t("settingsLoaded"));
   } catch (error) {
     console.error("Error loading settings:", error);
-    safeToastr("error", window.i18next.t("errorLoadingSettings"));
+    safeToastrMessage("error", window.i18next.t("errorLoadingSettings"));
   }
 }
 
@@ -2632,7 +2641,7 @@ function saveUserSettings() {
       darkMode: $("#settings-darkmode").is(":checked"),
     };
     localStorage.setItem("userSettings", JSON.stringify(settings));
-    safeToastr("success", window.i18next.t("settingsSavedSuccessfully"));
+    safeToastrMessage("success", window.i18next.t("settingsSavedSuccessfully"));
     if (lang) {
       window.i18next.changeLanguage(lang);
       // Nếu đã đăng nhập, gọi API cập nhật ngôn ngữ vào profile
@@ -2657,7 +2666,7 @@ function saveUserSettings() {
     return true;
   } catch (error) {
     console.error("Error saving settings:", error);
-    safeToastr("error", window.i18next.t("errorSavingSettings"));
+    safeToastrMessage("error", window.i18next.t("errorSavingSettings"));
     return false;
   }
 }
@@ -2777,24 +2786,24 @@ document.addEventListener("DOMContentLoaded", function () {
         .getElementById("confirm-password")
         .value.trim();
       if (!oldPwd || !newPwd || !confirmPwd) {
-        safeToastr("error", window.i18next.t("allFieldsRequired"));
+        safeToastrMessage("error", window.i18next.t("allFieldsRequired"));
         return;
       }
       if (newPwd.length < 6) {
-        safeToastr(
+        safeToastrMessage(
           "error",
           window.i18next.t("newPasswordMustBeAtLeast6Characters"),
         );
         return;
       }
       if (newPwd !== confirmPwd) {
-        safeToastr("error", window.i18next.t("passwordsDoNotMatch"));
+        safeToastrMessage("error", window.i18next.t("passwordsDoNotMatch"));
         return;
       }
       try {
         const token = localStorage.getItem("authToken");
         if (!token) {
-          safeToastr("error", window.i18next.t("authenticationRequired"));
+          safeToastrMessage("error", window.i18next.t("authenticationRequired"));
           return;
         }
         let lang =
@@ -2819,7 +2828,7 @@ document.addEventListener("DOMContentLoaded", function () {
         );
         const data = await res.json();
         if (res.ok && data.success !== false) {
-          safeToastr(
+          safeToastrMessage(
             "success",
             window.i18next.t("passwordChangedSuccessfully"),
           );
@@ -2836,16 +2845,16 @@ document.addEventListener("DOMContentLoaded", function () {
                 .toLowerCase()
                 .includes("古いパスワードが正しくありません"))
           ) {
-            safeToastr("error", window.i18next.t("oldPasswordIncorrect"));
+            safeToastrMessage("error", window.i18next.t("oldPasswordIncorrect"));
           } else {
-            safeToastr(
+            safeToastrMessage(
               "error",
               data.message || window.i18next.t("changePasswordFailed"),
             );
           }
         }
       } catch (err) {
-        safeToastr("error", window.i18next.t("changePasswordFailed"));
+        safeToastrMessage("error", window.i18next.t("changePasswordFailed"));
       }
     });
   }
@@ -2885,7 +2894,7 @@ window.exportAllUsersToCSV = async function (buttonElement) {
     const token = localStorage.getItem("authToken");
     if (!token) {
       if (window.toastr)
-        safeToastr(
+        safeToastrMessage(
           "error",
           window.i18next
             ? window.i18next.t("notAuthenticated")
@@ -2912,7 +2921,7 @@ window.exportAllUsersToCSV = async function (buttonElement) {
 
     if (totalCount === 0) {
       if (window.toastr)
-        safeToastr(
+        safeToastrMessage(
           "warning",
           window.i18next
             ? window.i18next.t("noDataToExport")
@@ -2947,7 +2956,7 @@ window.exportAllUsersToCSV = async function (buttonElement) {
 
     if (!users.length) {
       if (window.toastr)
-        safeToastr(
+        safeToastrMessage(
           "warning",
           window.i18next
             ? window.i18next.t("noDataToExport")
@@ -3085,7 +3094,7 @@ window.exportAllUsersToCSV = async function (buttonElement) {
     document.body.removeChild(link);
 
     if (window.toastr)
-      safeToastr(
+      safeToastrMessage(
         "success",
         window.i18next
           ? window.i18next.t("exportSuccess")
@@ -3094,7 +3103,7 @@ window.exportAllUsersToCSV = async function (buttonElement) {
   } catch (err) {
     console.error("Export error:", err);
     if (window.toastr)
-      safeToastr(
+      safeToastrMessage(
         "error",
         window.i18next ? window.i18next.t("exportFailed") : "Export failed",
       );
@@ -3128,19 +3137,25 @@ function getExportFileName(ext) {
   );
 }
 
-function safeToastr(type, msg) {
-  if (
-    typeof window.i18next !== "undefined" &&
-    typeof window.i18next.t === "function"
-  ) {
-    msg = window.i18next.t(msg);
+function safeToastrMessage(type, msg) {
+  if (typeof window.i18next !== "undefined" && typeof window.i18next.t === "function") {
+    if (typeof msg === "string" && (!msg.trim().includes(" ") || msg === msg.toUpperCase())) {
+      msg = window.i18next.t(msg);
+    }
   }
-  if (typeof toastr !== "undefined") {
+  if (typeof window.safeToastr === "function") {
+    window.safeToastr(type, msg);
+  } else if (typeof toastr !== "undefined") {
     toastr.clear();
-    if (type === "clear") return;
-    if (typeof toastr[type] === "function") toastr[type](msg);
-    else toastr.info(msg);
-  } else {
-    alert(msg);
+    toastr[type](msg);
   }
+}
+
+function translateUserTableHeaders() {
+  $("table.datatables-users thead th").each(function () {
+    var key = $(this).attr("data-i18n");
+    if (key && window.i18next && window.i18next.isInitialized) {
+      $(this).text(window.i18next.t(key));
+    }
+  });
 }

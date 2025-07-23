@@ -23,25 +23,14 @@ namespace AuthService.Controllers
         }
 
         [HttpPost("register")]
-        public async Task<IActionResult> Register(RegisterDto dto)
+        public async Task<IActionResult> Register([FromBody] RegisterWithAcceptDto dto)
         {
-            if (!ModelState.IsValid)
+            var (token, username, suggestedUsername, errorCode, message) = await _auth.RegisterAsync(dto, dto.AcceptSuggestedUsername);
+            if (!string.IsNullOrEmpty(errorCode))
             {
-                var errors = ModelState.Values
-                    .SelectMany(v => v.Errors)
-                    .Select(e => e.ErrorMessage)
-                    .ToList();
-                return BadRequest(new { success = false, message = "Validation failed", errors });
+                return BadRequest(new { errorCode, suggestedUsername, message });
             }
-
-            var (token, username) = await _auth.RegisterAsync(dto);
-            return Ok(new { 
-                success = true, 
-                message = "Registration successful",
-                token,
-                username,
-                redirectUrl = $"{_config["Frontend:BaseUrl"]}/auth/account-activated.html"
-            });
+            return Ok(new { token, username });
         }
 
         [HttpPost("login")]

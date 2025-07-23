@@ -61,8 +61,12 @@ class ErrorHandler {
    * @param {string} type - Error type (error, warning, info, success)
    */
   showError(errorCode, params = {}, type = "error") {
-    const message = this.getErrorMessage(errorCode, params);
-
+    let message = this.getErrorMessage(errorCode, params);
+    if (typeof window.i18next !== "undefined" && typeof window.i18next.t === "function") {
+      if (typeof message === "string" && (!message.trim().includes(" ") || message === message.toUpperCase())) {
+        message = window.i18next.t(message);
+      }
+    }
     if (typeof window.showToastr !== "undefined") {
       window.showToastr(message, type);
     } else {
@@ -102,12 +106,16 @@ class ErrorHandler {
     if (errorCode) {
       this.showError(errorCode, params);
     } else {
-      const message =
+      let message =
         response.message || response.error?.message || fallbackMessage;
+      if (typeof window.i18next !== "undefined" && typeof window.i18next.t === "function") {
+        if (typeof message === "string" && (!message.trim().includes(" ") || message === message.toUpperCase())) {
+          message = window.i18next.t(message);
+        }
+      }
       if (typeof window.showToastr !== "undefined") {
         window.showToastr(message, "error");
       } else {
-        // Thay thế alert(message) bằng showToastr(message, 'error') hoặc toastr.error(message)
         if (typeof window.toastr !== "undefined") {
           window.toastr.error(message);
         } else {

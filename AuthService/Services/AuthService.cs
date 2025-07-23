@@ -50,7 +50,7 @@ namespace AuthService.Services
             _resetPasswordTokenExpiryMinutes = int.Parse(_config["AuthPolicy:ResetPasswordTokenExpiryMinutes"] ?? "15");
         }
 
-        public async Task<(string token, string username)> RegisterAsync(RegisterDto dto)
+        public async Task<(string token, string username, string suggestedUsername, string errorCode, string message)> RegisterAsync(RegisterWithAcceptDto dto, bool acceptSuggestedUsername = false)
         {
             var sanitizedEmail = dto.Email?.Trim().ToLowerInvariant();
             var sanitizedUsername = dto.Username?.Trim();
@@ -101,46 +101,60 @@ namespace AuthService.Services
                     throw new UserAlreadyExistsException(sanitizedEmail);
             }
 
-            var finalUsername = await GenerateUniqueUsernameAsync(sanitizedUsername);
-
-            if (string.IsNullOrWhiteSpace(dto.Password))
-                throw new AuthException("REQUIRED_FIELD_MISSING", "Password is required");
-            
-            if (dto.Password.Length < 6)
-                throw new AuthException("WEAK_PASSWORD", "Password must be at least 6 characters");
-            
-            var user = new User
+            string finalUsername = sanitizedUsername;
+            int retry = 0;
+            const int maxRetry = 100;
+            Exception lastException = null;
+            do
             {
-                Username = finalUsername,
-                FullName = sanitizedFullName,
-                Email = sanitizedEmail,
-                PhoneNumber = dto.PhoneNumber?.Trim(),
-                PasswordHash = _passwordService.HashPassword(dto.Password),
-                LoginProvider = "Local",
-                Status = UserStatus.Inactive,
-                CreatedAt = DateTime.UtcNow
-            };
+                try
+                {
+                    if (retry > 0)
+                    {
+                        finalUsername = $"{sanitizedUsername}{retry}";
+                    }
+                    if (retry > 0 && !acceptSuggestedUsername)
+                    {
+                        return (null, sanitizedUsername, finalUsername, "USERNAME_ALREADY_EXISTS", $"usernameSuggestionMessage");
+                    }
+                    var user = new User
+                    {
+                        Username = finalUsername,
+                        FullName = sanitizedFullName,
+                        Email = sanitizedEmail,
+                        PhoneNumber = dto.PhoneNumber?.Trim(),
+                        PasswordHash = _passwordService.HashPassword(dto.Password),
+                        LoginProvider = "Local",
+                        Status = UserStatus.Inactive,
+                        CreatedAt = DateTime.UtcNow
+                    };
+                    await _repo.AddAsync(user);
+                    var token = _jwtService.GenerateToken(user, dto.Language ?? "en");
+                    var tokenExpiry = _jwtService.GetTokenExpirationTimeSpan(token);
+                    await _sessionService.StoreActiveTokenAsync(token, user.Id, tokenExpiry);
+                    var sessionId = Guid.NewGuid().ToString();
+                    await _sessionService.CreateUserSessionAsync(user.Id, sessionId, tokenExpiry);
+                    await _sessionService.SetUserLoginStatusAsync(user.Id, true, tokenExpiry);
 
-            await _repo.AddAsync(user);
-            var token = _jwtService.GenerateToken(user, dto.Language ?? "en");
-            var tokenExpiry = _jwtService.GetTokenExpirationTimeSpan(token);
-            await _sessionService.StoreActiveTokenAsync(token, user.Id, tokenExpiry);
-            var sessionId = Guid.NewGuid().ToString();
-            await _sessionService.CreateUserSessionAsync(user.Id, sessionId, tokenExpiry);
-            await _sessionService.SetUserLoginStatusAsync(user.Id, true, tokenExpiry);
-
-            var verifyToken = GenerateEmailVerifyToken(user.Id, user.Email);
-            var verifyLink = $"{_config["Frontend:BaseUrl"]}/auth/account-activated.html?token={verifyToken}&lang={dto.Language ?? "en"}";
-            await _emailMessageService.PublishRegisterNotificationAsync(new RegisterNotificationEmailEvent
-            {
-                To = user.Email,
-                Username = user.Username,
-                RegisterAt = DateTime.UtcNow,
-                VerifyLink = verifyLink,
-                Language = dto.Language ?? "en"
-            });
-            
-            return (token, finalUsername);
+                    var verifyToken = GenerateEmailVerifyToken(user.Id, user.Email);
+                    var verifyLink = $"{_config["Frontend:BaseUrl"]}/auth/account-activated.html?token={verifyToken}&lang={dto.Language ?? "en"}";
+                    await _emailMessageService.PublishRegisterNotificationAsync(new RegisterNotificationEmailEvent
+                    {
+                        To = user.Email,
+                        Username = user.Username,
+                        RegisterAt = DateTime.UtcNow,
+                        VerifyLink = verifyLink,
+                        Language = dto.Language ?? "en"
+                    });
+                    return (token, finalUsername, null, null, null);
+                }
+                catch (AuthException ex) when (ex.ErrorCode == "USERNAME_ALREADY_EXISTS")
+                {
+                    lastException = ex;
+                    retry++;
+                }
+            } while (retry < maxRetry);
+            throw lastException ?? new AuthException("USERNAME_ALREADY_EXISTS", $"Username '{finalUsername}' already exists");
         }
 
         private async Task<string> GenerateUniqueUsernameAsync(string baseUsername)

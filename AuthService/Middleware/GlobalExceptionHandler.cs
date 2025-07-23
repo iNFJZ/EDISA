@@ -73,6 +73,7 @@ namespace AuthService.Middleware
                 case AccountNotVerifiedException:
                     response.StatusCode = (int)HttpStatusCode.Forbidden;
                     errorResponse.ErrorCode = "ACCOUNT_NOT_VERIFIED";
+                    errorResponse.Message = "accountNotVerified";
                     break;
                 case UserLockedException:
                     response.StatusCode = (int)HttpStatusCode.TooManyRequests;

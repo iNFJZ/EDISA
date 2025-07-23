@@ -174,8 +174,6 @@ namespace FileService.Controllers
                 }
                 await _fileService.DeleteFileAsync(fileName);
 
-                _logger.LogInformation("File deleted successfully: {FileName}", fileName);
-
                 try
                 {
                     var userEmailClaim = User.FindFirst(ClaimTypes.Email) ?? User.FindFirst("email");
