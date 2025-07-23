@@ -266,6 +266,8 @@
   "confirmDeleteUser": "Bạn có chắc chắn muốn xóa người dùng này không?",
   "confirmRestoreUser": "Bạn có chắc chắn muốn khôi phục người dùng",
   "deleted": "Đã xóa",
+  "noData": "Không có dữ liệu",
+  "zeroRecords": "Không có dữ liệu",
   "editProfilePicture": "Chỉnh sửa ảnh đại diện",
   "editYourInformation": "chỉnh sửa thông tin của bạn",
   "emailAlreadyVerified": "Tài khoản của bạn đã được xác minh! Bạn sẽ được chuyển hướng đến trang đăng nhập.",

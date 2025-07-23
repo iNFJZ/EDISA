@@ -398,12 +398,10 @@ function loadDeactiveUsersTable() {
     serverSide: true,
     processing: true,
     ajax: {
-      url: "http://localhost:5050/api/User",
+      url: "http://localhost:5050/api/User/deleted",
       type: "GET",
       data: function (d) {
         return {
-          includeDeleted: true,
-          status: "Banned",
           page: Math.floor(d.start / d.length) + 1,
           pageSize: d.length,
           search: d.search.value || null,
