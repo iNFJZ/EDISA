@@ -18,7 +18,7 @@ pipeline {
         }
         stage('Cleanup All Old Containers') {
             steps {
-                sh 'docker rm -f grpc-server minio auth-postgres redis rabbitmq || true'
+                sh 'docker rm -f grpc-server minio auth-postgres redis rabbitmq email-service auth-service file-service user-service gateway-api frontend || true'
             }
         }
         stage('Deploy Containers') {
