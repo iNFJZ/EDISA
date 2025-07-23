@@ -2409,7 +2409,7 @@ window.openDeleteUserModal = function (userId) {
       $(".delete-user-address").text(
         user.address || window.i18next.t("notAvailable"),
       );
-      $(".delete-user-created").text(
+      $(".delete-user-createdAt").text(
         user.createdAt
           ? new Date(user.createdAt).toLocaleString("en-GB", {
               year: "numeric",
@@ -2470,7 +2470,7 @@ window.openRestoreUserModal = function (userId) {
       $(".restore-user-address").text(
         user.address || window.i18next.t("notAvailable"),
       );
-      $(".restore-user-created").text(
+      $(".restore-user-createdAt").text(
         user.createdAt
           ? new Date(user.createdAt).toLocaleString("en-GB", {
               year: "numeric",

@@ -29,6 +29,15 @@ pipeline {
         }
     }
     post {
+        always {
+            script {
+                try {
+                    sh 'docker ps -aq | xargs -r docker rm -f'
+                } catch (err) {
+                    echo "No containers to remove or error: ${err}"
+                }
+            }
+        }
         success {
             emailext (
                 subject: "✅ [SUCCESS] ${env.JOB_NAME} #${env.BUILD_NUMBER} deployed successfully",
