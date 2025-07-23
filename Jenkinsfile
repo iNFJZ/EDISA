@@ -18,7 +18,7 @@ pipeline {
         }
         stage('Deploy Containers') {
             steps {
-                sh 'docker-compose down || true'
+                sh 'docker-compose down -v --remove-orphans || true'
                 sh 'docker-compose up --build -d'
             }
         }
