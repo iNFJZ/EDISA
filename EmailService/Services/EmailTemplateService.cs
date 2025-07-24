@@ -36,7 +36,6 @@ namespace EmailService.Services
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"Failed to load language file {langFile}: {ex.Message}");
                     }
                 }
             }

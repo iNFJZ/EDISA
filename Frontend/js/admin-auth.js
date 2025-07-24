@@ -1053,7 +1053,7 @@ function handleAddUser() {
       return res.json();
     })
     .then((res) => {
-      console.log("Add user response:", res);
+      // console.log("Add user response:", res);
       if (res.success || res.id) {
         safeToastrMessage("clear");
         let backendUsername = res.username || username;
@@ -3158,3 +3158,305 @@ function translateUserTableHeaders() {
     }
   });
 }
+
+// --- Two-steps verification (OTP SMS) logic for security.html ---
+// $(document).ready(function () {
+//   if (!window.location.pathname.endsWith("security.html")) return;
+
+//   let otpPhone = "";
+//   let otpStep = 1;
+
+//   function resetOTPModal() {
+//     otpStep = 1;
+//     otpPhone = "";
+//     $("#modalEnableOTPPhone").val("").prop("disabled", false);
+//     $("#enableOTPForm .otp-section").remove();
+//     $("#enableOTPForm button[type='submit']").show();
+//     $("#enableOTPForm button[type='submit']").text(window.i18next ? window.i18next.t("submit") : "Submit");
+//   }
+
+//   $("#enableOTP").on("show.bs.modal", resetOTPModal);
+
+//   $("#enableOTPForm").off("submit").on("submit", async function (e) {
+//     e.preventDefault();
+//     if (otpStep === 1) {
+//       const phone = $("#modalEnableOTPPhone").val().trim();
+//       if (!phone || !/^\+?[0-9]{8,15}$/.test(phone)) {
+//         safeToastrMessage("error", window.i18next ? window.i18next.t("phoneNumberInvalidFormat") : "Invalid phone number");
+//         return;
+//       }
+//       otpPhone = phone;
+//       const btn = $(this).find("button[type='submit']");
+//       btn.prop("disabled", true).text(window.i18next ? window.i18next.t("sending") : "Sending...");
+//       try {
+//         const token = localStorage.getItem("authToken");
+//         const res = await fetch("http://localhost:5050/api/Auth/enable-2fa-sms", {
+//           method: "POST",
+//           headers: {
+//             "Content-Type": "application/json",
+//             Authorization: `Bearer ${token}`,
+//           },
+//           body: JSON.stringify({ phoneNumber: phone }),
+//         });
+//         const data = await res.json();
+//         if (res.ok && data.success) {
+//           safeToastrMessage("success", window.i18next ? window.i18next.t("otpSentToPhone") : "OTP sent to phone");
+//           $("#enableOTPForm .otp-section").remove();
+//           $("<div class='col-12 otp-section mt-2'>"
+//             + `<label class='form-label' for='otpInput'>${window.i18next ? window.i18next.t("enterOtpCode") : "Enter OTP code"}</label>`
+//             + "<input type='text' id='otpInput' class='form-control' maxlength='8' autocomplete='one-time-code' />"
+//             + "</div>").insertAfter($("#enableOTPForm .col-12").last());
+//           btn.text(window.i18next ? window.i18next.t("verify") : "Verify").prop("disabled", false);
+//           otpStep = 2;
+//         } else {
+//           safeToastrMessage("error", data.message || (window.i18next ? window.i18next.t("failedToSendOtp") : "Failed to send OTP"));
+//           btn.prop("disabled", false).text(window.i18next ? window.i18next.t("submit") : "Submit");
+//         }
+//       } catch (err) {
+//         safeToastrMessage("error", window.i18next ? window.i18next.t("failedToSendOtp") : "Failed to send OTP");
+//         btn.prop("disabled", false).text(window.i18next ? window.i18next.t("submit") : "Submit");
+//       }
+//     } else if (otpStep === 2) {
+//       const otp = $("#otpInput").val().trim();
+//       if (!otp || otp.length < 4) {
+//         safeToastrMessage("error", window.i18next ? window.i18next.t("otpInvalid") : "Invalid OTP");
+//         return;
+//       }
+//       const btn = $(this).find("button[type='submit']");
+//       btn.prop("disabled", true).text(window.i18next ? window.i18next.t("verifying") : "Verifying...");
+//       try {
+//         const token = localStorage.getItem("authToken");
+//         const res = await fetch("http://localhost:5050/api/Auth/verify-2fa-sms", {
+//           method: "POST",
+//           headers: {
+//             "Content-Type": "application/json",
+//             Authorization: `Bearer ${token}`,
+//           },
+//           body: JSON.stringify({ phoneNumber: otpPhone, otp }),
+//         });
+//         const data = await res.json();
+//         if (res.ok && data.success) {
+//           safeToastrMessage("success", window.i18next ? window.i18next.t("twoFactorEnabledSuccessfully") : "Two-factor authentication enabled");
+//           $("#enableOTP").modal("hide");
+//           setTimeout(() => window.location.reload(), 1000);
+//         } else {
+//           safeToastrMessage("error", data.message || (window.i18next ? window.i18next.t("otpInvalid") : "Invalid OTP"));
+//           btn.prop("disabled", false).text(window.i18next ? window.i18next.t("verify") : "Verify");
+//         }
+//       } catch (err) {
+//         safeToastrMessage("error", window.i18next ? window.i18next.t("otpInvalid") : "Invalid OTP");
+//         btn.prop("disabled", false).text(window.i18next ? window.i18next.t("verify") : "Verify");
+//       }
+//     }
+//   });
+// });
+
+// --- Google Authenticator (TOTP) logic for security.html ---
+
+// --- Disable 2FA (TOTP) logic for security.html ---
+$(document).ready(function () {
+  if (!window.location.pathname.endsWith("security.html")) return;
+
+  function updateDisableTOTPModalI18n() {
+    $("#disableTOTPModal .modal-title").text(window.i18next.t("disableGoogleAuthenticator"));
+    $("#disableTOTPInput").attr("placeholder", window.i18next.t("enterOtpCode"));
+    $("#confirmDisableTOTPBtn").text(window.i18next.t("disable2fa"));
+  }
+
+  if (window.i18next) {
+    window.i18next.on("languageChanged", function () {
+      updateDisableTOTPModalI18n();
+    });
+  }
+
+  if ($("#disableTOTPModal").length === 0) {
+    $("<div class='modal fade' id='disableTOTPModal' tabindex='-1' aria-hidden='true'>"
+      + "<div class='modal-dialog modal-simple modal-dialog-centered'>"
+      + "<div class='modal-content'>"
+      + `<div class='modal-header'><h5 class='modal-title'>${window.i18next.t("disableGoogleAuthenticator")}</h5><button type='button' class='btn-close' data-bs-dismiss='modal' aria-label='Close'></button></div>`
+      + "<div class='modal-body'>"
+      + `<input type='text' class='form-control mb-2' id='disableTOTPInput' placeholder='${window.i18next.t("enterOtpCode")}'>`
+      + "<div class='text-danger small' id='disableTOTPError'></div>"
+      + "</div>"
+      + "<div class='modal-footer'>"
+      + `<button type='button' class='btn btn-danger' id='confirmDisableTOTPBtn'>${window.i18next.t("disable2fa")}</button>`
+      + "</div></div></div></div>")
+      .appendTo("body");
+  }
+
+  $(document).on("click", "#disableTOTPBtn", function () {
+    $("#disableTOTPInput").val("");
+    $("#disableTOTPError").text("");
+    updateDisableTOTPModalI18n();
+    $("#disableTOTPModal").modal("show");
+  });
+
+  $(document).on("click", "#confirmDisableTOTPBtn", async function () {
+    const code = $("#disableTOTPInput").val().trim();
+    const lang = localStorage.getItem("i18nextLng") || (window.i18next && window.i18next.language) || "en";
+    if (!code) {
+      $("#disableTOTPError").text(window.i18next.t("enterOtpCode"));
+      return;
+    }
+    $("#confirmDisableTOTPBtn").prop("disabled", true);
+    try {
+      const token = localStorage.getItem("authToken");
+      const res = await fetch("http://localhost:5050/api/Auth/disable-2fa-totp", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ code, language: lang })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        $("#disableTOTPModal").modal("hide");
+        safeToastrMessage("success", data.message || window.i18next.t("2faDisabledSuccess"));
+        setTimeout(() => location.reload(), 1000);
+      } else {
+        $("#disableTOTPError").text(data.message || window.i18next.t("invalidOtpCode"));
+      }
+    } catch (err) {
+      $("#disableTOTPError").text(window.i18next.t("disable2faFailed"));
+    } finally {
+      $("#confirmDisableTOTPBtn").prop("disabled", false);
+    }
+  });
+});
+
+function renderTwoFAStatus(twoFactorEnabled) {
+  let $twoFAStatus = $("#twoFAStatus");
+  if ($twoFAStatus.length === 0) {
+    $twoFAStatus = $("<div id='twoFAStatus' class='mb-2'></div>");
+    $(".two-steps-verification-card .card-body").prepend($twoFAStatus);
+  }
+  $("#enableTOTPBtn, #disableTOTPBtn, #totpGuideSteps").remove();
+  if (twoFactorEnabled) {
+    $twoFAStatus.html(`<span class='badge bg-success'><i class='ti ti-shield-lock me-1'></i> ${window.i18next.t("twoFactorAuthEnabled")}</span>`);
+    $("<button class='btn btn-outline-danger mt-2 ms-2' id='disableTOTPBtn'><i class='ti ti-x me-1'></i> " + window.i18next.t('disable2fa') + "</button>")
+      .appendTo($(".two-steps-verification-card .card-body"));
+  } else {
+    $twoFAStatus.html(`<span class='badge bg-secondary'><i class='ti ti-shield-off me-1'></i> ${window.i18next.t("twoFactorAuthNotEnabled")}</span>`);
+    $("<button class='btn btn-outline-primary mt-2' id='enableTOTPBtn'><i class='ti ti-qrcode me-1'></i> Google Authenticator</button>")
+      .appendTo($(".two-steps-verification-card .card-body"));
+  }
+}
+
+$(document).ready(async function () {
+  if (!window.location.pathname.endsWith("security.html")) return;
+  let twoFactorEnabled = false;
+  try {
+    const token = localStorage.getItem("authToken");
+    const res = await fetch("http://localhost:5050/api/Auth/two-factor-status", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data && typeof data.twoFactorEnabled !== "undefined") {
+        twoFactorEnabled = !!data.twoFactorEnabled;
+      }
+    }
+  } catch {}
+  renderTwoFAStatus(twoFactorEnabled);
+  if (window.i18next) {
+    window.i18next.on("languageChanged", function () {
+      renderTwoFAStatus(twoFactorEnabled);
+    });
+  }
+});
+
+$(document).off("click", "#enableTOTPBtn").on("click", "#enableTOTPBtn", async function () {
+  function updateTOTPModalI18n() {
+    $("#totpModal .modal-title").text(window.i18next.t("googleAuthenticator"));
+    $("#totpGuideStepsModal li").eq(0).text(window.i18next.t("totpStep1"));
+    $("#totpGuideStepsModal li").eq(1).text(window.i18next.t("totpStep2"));
+    $("#totpGuideStepsModal li").eq(2).text(window.i18next.t("totpStep3"));
+    $("#totpOtpInput").attr("placeholder", window.i18next.t("enterOtpCode"));
+    $("#totpVerifyBtn").text(window.i18next.t("verify"));
+  }
+
+  if (window.i18next) {
+    window.i18next.on("languageChanged", function () {
+      updateTOTPModalI18n();
+    });
+  }
+
+  if ($("#totpModal").length === 0) {
+    $("<div class='modal fade' id='totpModal' tabindex='-1' aria-hidden='true'>"
+      + "<div class='modal-dialog modal-simple modal-dialog-centered'>"
+      + "<div class='modal-content'>"
+      + `<div class='modal-header'><h5 class='modal-title text-center w-100'>${window.i18next.t("googleAuthenticator")}</h5><button type='button' class='btn-close' data-bs-dismiss='modal' aria-label='Close'></button></div>`
+      + "<div class='modal-body'>"
+      + `<ol class='mb-3 px-2' id='totpGuideStepsModal'>`
+      + `<li>${window.i18next.t("totpStep1")}</li>`
+      + `<li>${window.i18next.t("totpStep2")}</li>`
+      + `<li>${window.i18next.t("totpStep3")}</li>`
+      + "</ol>"
+      + "<div id='totpQrSection' class='text-center mb-3'></div>"
+      + `<div class='mb-2'><input type='text' id='totpOtpInput' class='form-control' maxlength='8' autocomplete='one-time-code' placeholder='${window.i18next.t("enterOtpCode")}'></div>`
+      + "<div class='text-danger small' id='totpOtpError'></div>"
+      + "</div>"
+      + `<div class='modal-footer'><button type='button' class='btn btn-primary w-100' id='totpVerifyBtn'>${window.i18next.t('verify')}</button></div>`
+      + "</div></div></div>")
+      .appendTo("body");
+  }
+  updateTOTPModalI18n();
+  $("#totpModal").modal("show");
+
+  const token = localStorage.getItem("authToken");
+  $("#totpGuideStepsModal li").eq(0).text(window.i18next.t("totpStep1"));
+  $("#totpGuideStepsModal li").eq(1).text(window.i18next.t("totpStep2"));
+  $("#totpGuideStepsModal li").eq(2).text(window.i18next.t("totpStep3"));
+  $("#totpModal").modal("show");
+
+  $("#totpQrSection").html('<div class="text-muted">' + (window.i18next ? window.i18next.t("loading") : "Loading...") + '</div>');
+  try {
+    const lang = window.i18next?.language || localStorage.getItem("i18nextLng") || "en";
+    const res = await fetch("http://localhost:5050/api/Auth/enable-2fa-totp", {
+      method: "POST",
+      headers: { 
+        Authorization: `Bearer ${token}`,
+        "Accept-Language": lang
+      },
+    });
+    const data = await res.json();
+    if (res.ok && data.qrCodeImage) {
+      $("#totpQrSection").html(`<img src='${data.qrCodeImage}' alt='QR Code' style='width:180px;height:180px;margin-bottom:10px;'><div class='mt-2'><b>${window.i18next.t("secret")}:</b> <span style='user-select:all'>${data.secret || ""}</span></div>`);
+    } else {
+      const errorMsg = data.errorCode ? window.i18next.t(data.errorCode) : (data.message || window.i18next.t("failedToGenerateQr"));
+      $("#totpQrSection").html('<div class="text-danger">' + errorMsg + '</div>');
+    }
+  } catch (err) {
+    $("#totpQrSection").html('<div class="text-danger">' + (window.i18next ? window.i18next.t("failedToGenerateQr") : "Failed to generate QR") + '</div>');
+  }
+
+  $("#totpVerifyBtn").off("click").on("click", async function () {
+    const otp = $("#totpOtpInput").val().trim();
+    if (!otp || otp.length < 4) {
+      $("#totpOtpError").text(window.i18next.t("otpInvalid"));
+      return;
+    }
+    $("#totpVerifyBtn").prop("disabled", true);
+    $("#totpOtpError").text("");
+    try {
+      const res = await fetch("http://localhost:5050/api/Auth/verify-2fa-totp", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify(otp),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        $("#totpModal").modal("hide");
+        safeToastrMessage("success", window.i18next.t("twoFactorEnabledSuccessfully"));
+        setTimeout(() => location.reload(), 1000);
+      } else {
+        $("#totpOtpError").text(data.message || window.i18next.t("otpInvalid"));
+      }
+    } catch (err) {
+      $("#totpOtpError").text(window.i18next.t("otpInvalid"));
+    } finally {
+      $("#totpVerifyBtn").prop("disabled", false);
+    }
+  });
+});

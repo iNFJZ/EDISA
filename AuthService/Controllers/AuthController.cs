@@ -4,6 +4,7 @@ using AuthService.Extensions;
 using Microsoft.AspNetCore.Authorization;               
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
+using AuthService.Exceptions;
 
 namespace AuthService.Controllers
 {
@@ -44,14 +45,19 @@ namespace AuthService.Controllers
                     .ToList();
                 return BadRequest(new { success = false, message = "Validation failed", errors });
             }
-
-            var token = await _auth.LoginAsync(dto);
-            return Ok(new { 
-                success = true, 
-                message = "Login successful",
-                token,
-                redirectUrl = $"{_config["Frontend:BaseUrl"]}/admin/user-list.html"
-            });
+            try
+            {
+                var result = await _auth.LoginAsync(dto);
+                if (result.Require2FA)
+                {
+                    return Ok(new { success = false, require2FA = true, userId = result.UserId, message = result.Message });
+                }
+                return Ok(new { success = true, token = result.Token, message = result.Message, redirectUrl = $"{_config["Frontend:BaseUrl"]}/admin/index.html" });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { success = false, message = ex.Message });
+            }
         }
 
         [HttpPost("login/google")]
@@ -270,6 +276,88 @@ namespace AuthService.Controllers
             {
                 return BadRequest(new { success = false, message = ex.Message });
             }
+        }
+
+        [Authorize]
+        [HttpPost("enable-2fa-totp")]
+        public async Task<IActionResult> EnableTwoFactor()
+        {
+            try
+            {
+                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+                if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out Guid userId))
+                    return Unauthorized();
+                try
+                {
+                    var (qrCodeImage, secret) = await _auth.EnableTwoFactorAsync(userId);
+                    return Ok(new { qrCodeImage, secret });
+                }
+                catch (Exception ex)
+                {
+                    if (ex is AuthService.Exceptions.AuthException authEx)
+                    {
+                        return BadRequest(new { success = false, errorCode = authEx.ErrorCode, message = authEx.Message });
+                    }
+                    return BadRequest(new { success = false, errorCode = "FAILED_TO_GENERATE_QR", message = "failedToGenerateQr" });
+                }
+            }
+            catch (AuthException ex)
+            {
+                return BadRequest(new { success = false, errorCode = ex.ErrorCode, message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { success = false, message = ex.Message });
+            }
+        }
+
+        [Authorize]
+        [HttpPost("verify-2fa-totp")]
+        public async Task<IActionResult> VerifyTwoFactor([FromBody] string code)
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+            if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out Guid userId))
+                return Unauthorized();
+            var valid = await _auth.VerifyTwoFactorAsync(userId, code);
+            if (valid) return Ok(new { success = true });
+            return BadRequest(new { success = false, message = "Invalid OTP code" });
+        }
+
+        [Authorize]
+        [HttpPost("disable-2fa-totp")]
+        public async Task<IActionResult> DisableTwoFactor([FromBody] Disable2FADto dto)
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+            if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out Guid userId))
+                return Unauthorized();
+            try
+            {
+                var ok = await _auth.DisableTwoFactorAsync(userId, dto.Code, dto.Language);
+                if (ok)
+                    return Ok(new { success = true });
+                return BadRequest(new { success = false });
+            }
+            catch (AuthException ex)
+            {
+                return BadRequest(new { success = false, errorCode = ex.ErrorCode, message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { success = false, message = ex.Message });
+            }
+        }
+
+        [Authorize]
+        [HttpGet("two-factor-status")]
+        public async Task<IActionResult> GetTwoFactorStatus()
+        {
+            var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
+            if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out Guid userId))
+                return Unauthorized();
+            var user = await _auth.GetUserByIdAsync(userId);
+            if (user == null)
+                return NotFound(new { success = false, message = "User not found" });
+            return Ok(new { success = true, twoFactorEnabled = user.TwoFactorEnabled });
         }
 
 

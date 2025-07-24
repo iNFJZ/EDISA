@@ -44,12 +44,17 @@ namespace AuthService.Services
         {
             try
             {
-                var token = await _authService.LoginAsync(new DTOs.LoginDto
+                var result = await _authService.LoginAsync(new DTOs.LoginDto
                 {
                     Email = request.Email,
-                    Password = request.Password
+                    Password = request.Password,
+                    OtpCode = request.OtpCode
                 });
-                return new LoginResponse { Success = true, Message = "Login successful", Token = token };
+                if (result.Require2FA)
+                {
+                    return new LoginResponse { Success = false, Message = result.Message ?? "2FA code required", Require2FA = true, UserId = result.UserId?.ToString() };
+                }
+                return new LoginResponse { Success = true, Message = result.Message ?? "Login successful", Token = result.Token };
             }
             catch (System.Exception ex)
             {

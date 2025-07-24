@@ -64,6 +64,9 @@ public class User
     public DateTime? DeletedAt { get; set; }
 
     public bool IsDeleted => DeletedAt.HasValue;
+
+    public string? TwoFactorSecret { get; set; }
+    public bool TwoFactorEnabled { get; set; } = false;
 }
 
 public enum UserStatus
