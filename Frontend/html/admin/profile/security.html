@@ -480,18 +480,14 @@
                   <!--/ Change Password -->
 
                   <!-- Two-steps verification -->
-                  <div class="card mb-4">
+                  <div class="card mb-4 two-steps-verification-card">
                     <h5 class="card-header">
                       <span data-i18n="twoStepsVerification"
                         >Two-steps verification</span
                       >
                     </h5>
                     <div class="card-body">
-                      <h5 class="mb-3">
-                        <span data-i18n="twoFactorAuthNotEnabled"
-                          >Two factor authentication is not enabled yet.</span
-                        >
-                      </h5>
+                      <div id="twoFAStatus"></div>
                       <p class="w-75">
                         <span data-i18n="twoFactorAuthDescription"
                           >Two-factor authentication adds an additional layer of
@@ -502,15 +498,6 @@
                           ><span data-i18n="learnMore">Learn more.</span></a
                         >
                       </p>
-                      <button
-                        class="btn btn-primary mt-2"
-                        data-bs-toggle="modal"
-                        data-bs-target="#enableOTP"
-                      >
-                        <span data-i18n="enableTwoFactorAuth"
-                          >Enable two-factor authentication</span
-                        >
-                      </button>
                     </div>
                   </div>
                   <!-- Modal -->

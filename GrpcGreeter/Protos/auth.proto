@@ -39,12 +39,15 @@ message RegisterResponse {
 message LoginRequest {
   string email = 1;
   string password = 2;
+  string otpCode = 3;
 }
 
 message LoginResponse {
   bool success = 1;
   string token = 2;
   string message = 3;
+  bool require2FA = 4;
+  string userId = 5;
 }
 
 message AuthResponse {

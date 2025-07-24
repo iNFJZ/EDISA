@@ -261,7 +261,9 @@ public class UserController : ControllerBase
         [FromQuery] int pageSize = 10,
         [FromQuery] string? search = null,
         [FromQuery] string? sortBy = null,
-        [FromQuery] string? sortOrder = "asc")
+        [FromQuery] string? sortOrder = "asc",
+        [FromQuery] bool includeDeleted = false)
+
     {
         try
         {

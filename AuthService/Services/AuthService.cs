@@ -10,6 +10,9 @@ using System.Text;
 using Microsoft.Extensions.Configuration;
 using System.Security.Claims;
 using Shared.EmailModels;
+using OtpNet;
+using System.Drawing;
+using QRCoder;
 
 namespace AuthService.Services
 {
@@ -291,22 +294,18 @@ namespace AuthService.Services
             return user?.Email;
         }
 
-        public async Task<string> LoginAsync(LoginDto dto)
+        public async Task<LoginResultDto> LoginAsync(LoginDto dto)
         {
             var sanitizedEmail = dto.Email?.Trim().ToLowerInvariant();
             if (string.IsNullOrWhiteSpace(sanitizedEmail))
                 throw new AuthException("REQUIRED_FIELD_MISSING", "Email is required");
-            
             var user = await _repo.GetByEmailIncludeDeletedAsync(sanitizedEmail);
             if (user == null)
                 throw new InvalidCredentialsException();
-            
             if (user.IsDeleted)
                 throw new AccountDeletedException();
-
             if (user.Status == UserStatus.Banned)
                 throw new AccountBannedException();
-
             if (!user.IsVerified)
                 throw new AccountNotVerifiedException();
             try
@@ -323,7 +322,6 @@ namespace AuthService.Services
                 throw new AuthException("REQUIRED_FIELD_MISSING", "Password is required");
             if (dto.Password.Length < 6)
                 throw new AuthException("WEAK_PASSWORD", "Password must be at least 6 characters");
-            
             var isLocked = await _sessionService.IsUserLockedAsync(user.Id);
             if (isLocked)
             {
@@ -356,6 +354,18 @@ namespace AuthService.Services
                 user.UpdatedAt = DateTime.UtcNow;
                 await _repo.UpdateAsync(user);
             }
+            if (user.TwoFactorEnabled && !string.IsNullOrEmpty(user.TwoFactorSecret))
+            {
+                if (string.IsNullOrWhiteSpace(dto.OtpCode))
+                {
+                    return new LoginResultDto { Require2FA = true, UserId = user.Id, Message = "2FA code required" };
+                }
+                var totp = new OtpNet.Totp(OtpNet.Base32Encoding.ToBytes(user.TwoFactorSecret));
+                if (!totp.VerifyTotp(dto.OtpCode.Trim(), out long _, new OtpNet.VerificationWindow(2, 2)))
+                {
+                    return new LoginResultDto { Require2FA = true, UserId = user.Id, Message = "Invalid 2FA code" };
+                }
+            }
             var token = _jwtService.GenerateToken(user, dto.Language ?? "en");
             var tokenExpiry = _jwtService.GetTokenExpirationTimeSpan(token);
             await _sessionService.StoreActiveTokenAsync(token, user.Id, tokenExpiry);
@@ -364,7 +374,7 @@ namespace AuthService.Services
             await _sessionService.SetUserLoginStatusAsync(user.Id, true, tokenExpiry);
             user.LastLoginAt = DateTime.UtcNow;
             await _repo.UpdateAsync(user);
-            return token;
+            return new LoginResultDto { Token = token, Require2FA = false, UserId = user.Id, Message = "Login successful" };
         }
 
         public async Task<bool> LogoutAsync(string token)
@@ -587,6 +597,62 @@ namespace AuthService.Services
                 rng.GetBytes(randomBytes);
             }
             return Convert.ToBase64String(randomBytes).Replace("+", "-").Replace("/", "_").Replace("=", "");
+        }
+
+        public async Task<(string qrCodeImage, string secret)> EnableTwoFactorAsync(Guid userId)
+        {
+            var user = await _repo.GetByIdAsync(userId);
+            if (user == null) throw new Exception("User not found");
+            if (!string.IsNullOrEmpty(user.TwoFactorSecret) && user.TwoFactorEnabled)
+                throw new AuthException("2FA_ALREADY_ENABLED", "2FA already enabled");
+            var secret = KeyGeneration.GenerateRandomKey(20);
+            var base32Secret = Base32Encoding.ToString(secret);
+            user.TwoFactorSecret = base32Secret;
+            user.TwoFactorEnabled = false;
+            await _repo.UpdateAsync(user);
+            var issuer = "EDISA";
+            var label = user.Email;
+            var otpUrl = new OtpUri(OtpType.Totp, base32Secret, label, issuer).ToString();
+            var qrGen = new QRCodeGenerator();
+            var qrData = qrGen.CreateQrCode(otpUrl, QRCodeGenerator.ECCLevel.Q);
+            var pngQr = new PngByteQRCode(qrData);
+            var qrBytes = pngQr.GetGraphic(20);
+            var qrBase64 = Convert.ToBase64String(qrBytes);
+            return ($"data:image/png;base64,{qrBase64}", base32Secret);
+        }
+
+        public async Task<bool> VerifyTwoFactorAsync(Guid userId, string code)
+        {
+            var user = await _repo.GetByIdAsync(userId);
+            if (user == null || string.IsNullOrEmpty(user.TwoFactorSecret)) return false;
+            var totp = new Totp(Base32Encoding.ToBytes(user.TwoFactorSecret));
+            var valid = totp.VerifyTotp(code, out long _, VerificationWindow.RfcSpecifiedNetworkDelay);
+            if (valid)
+            {
+                user.TwoFactorEnabled = true;
+                await _repo.UpdateAsync(user);
+            }
+            return valid;
+        }
+
+        public async Task<bool> DisableTwoFactorAsync(Guid userId, string code, string? language = null)
+        {
+            var user = await _repo.GetByIdAsync(userId);
+            if (user == null || string.IsNullOrEmpty(user.TwoFactorSecret) || !user.TwoFactorEnabled)
+                throw new AuthException("2FA_NOT_ENABLED", "2FA is not enabled");
+            var totp = new Totp(Base32Encoding.ToBytes(user.TwoFactorSecret));
+            var valid = totp.VerifyTotp(code, out long _, VerificationWindow.RfcSpecifiedNetworkDelay);
+            if (!valid)
+                throw new AuthException("INVALID_OTP_CODE", "Invalid OTP code");
+            user.TwoFactorSecret = null;
+            user.TwoFactorEnabled = false;
+            await _repo.UpdateAsync(user);
+            return true;
+        }
+
+        public async Task<User?> GetUserByIdAsync(Guid userId)
+        {
+            return await _repo.GetByIdAsync(userId);
         }
 
 
