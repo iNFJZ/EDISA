@@ -391,9 +391,6 @@ document.addEventListener("DOMContentLoaded", async function () {
       }
 
       let phone = formData.get("phoneNumber")?.trim();
-      if (phone && phone.startsWith("+84")) phone = "0" + phone.slice(3);
-      else if (phone && phone.startsWith("84")) phone = "0" + phone.slice(2);
-
       if (phone && !/^[0-9]{10,11}$/.test(phone)) {
         showToastrMessage(
           window.i18next.t("phoneNumberMustBe10To11DigitsAndOnlyNumbers"),

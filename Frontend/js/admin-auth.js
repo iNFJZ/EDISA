@@ -380,76 +380,77 @@ function loadDeactiveUsersTable() {
     window.location.href = "/auth/login.html";
     return;
   }
-
   const dt_user_table = $(".datatables-users");
-  if (!dt_user_table.length) return;
-
-  if ($.fn.DataTable.isDataTable(dt_user_table)) {
-    try {
+  if (dt_user_table.length) {
+    if ($.fn.DataTable.isDataTable(dt_user_table)) {
       dt_user_table.DataTable().destroy();
-    } catch (e) {
-      dt_user_table.empty();
     }
-  }
+    dt_user_table.DataTable({
+      serverSide: true,
+      processing: true,
+      ajax: {
+        url: "http://localhost:5050/api/User?includeDeleted=true",
+        type: "GET",
+        data: function (d) {
+          return {
+            page: Math.floor(d.start / d.length) + 1,
+            pageSize: d.length,
+            search: d.search.value || null,
+            sortBy: d.columns[d.order0?.column]?.data || null,
+            sortOrder: d.order0 || "asc",
+            status: 4,
+            deletedAt: !null,
+            includeDeleted: true,
+          };
+        },
+        dataSrc: function (json) {
+          if (!json || !Array.isArray(json.data)) return [];
 
-  dt_user_table.empty();
+          if (json.pagination) {
+            const totalCount = json.pagination.totalCount;
+            updateUserStatsDashboard();
+          }
 
-  dt_user_table.DataTable({
-    serverSide: true,
-    processing: true,
-    ajax: {
-      url: "http://localhost:5050/api/User/deleted",
-      type: "GET",
-      data: function (d) {
-        return {
-          page: Math.floor(d.start / d.length) + 1,
-          pageSize: d.length,
-          search: d.search.value || null,
-          sortBy: d.columns[d.order0?.column]?.data || null,
-          sortOrder: d.order0 || "asc",
-        };
+          return json.data;
+        },
+        dataFilter: function (data) {
+          var json = JSON.parse(data);
+          if (json.pagination) {
+            json.recordsTotal = json.pagination.totalCount;
+            json.recordsFiltered = json.pagination.totalCount;
+          }
+          return JSON.stringify(json);
+        },
+        beforeSend: function (xhr) {
+          if (token) xhr.setRequestHeader("Authorization", "Bearer " + token);
+        },
       },
-      dataSrc: function (json) {
-        if (!json || !Array.isArray(json.data)) return [];
-        return json.data;
+      columns: [
+        { data: null, defaultContent: "" }, // Avatar
+        { data: "username" },
+        { data: "fullName" },
+        { data: "email" },
+        { data: "status" },
+        { data: "deletedAt" },
+        { data: null, defaultContent: "" }, // Actions
+      ],
+      columnDefs: getUserTableColumnDefs(true),
+      order: [[1, "asc"]],
+      dom: getUserTableDom(),
+      language: getUserTableLanguage(),
+      buttons: getUserTableButtons(),
+      rowCallback: function (row, data) {
+        $(row).attr("data-userid", data.id);
       },
-      dataFilter: function (data) {
-        var json = JSON.parse(data);
-        if (json.pagination) {
-          json.recordsTotal = json.pagination.totalCount;
-          json.recordsFiltered = json.pagination.totalCount;
-        }
-        return JSON.stringify(json);
+      initComplete: function () {
+        translateUserTableHeaders();
       },
-      beforeSend: function (xhr) {
-        if (token) xhr.setRequestHeader("Authorization", "Bearer " + token);
-      },
-    },
-    columns: [
-      { data: null, defaultContent: "" }, // Avatar
-      { data: "username" },
-      { data: "fullName" },
-      { data: "email" },
-      { data: "status" },
-      { data: "deletedAt" },
-      { data: null, defaultContent: "" }, // Actions
-    ],
-    columnDefs: getUserTableColumnDefs(true),
-    createdRow: function (row, data) {
-      $(row).attr("data-userid", data.id);
-    },
-    order: [[1, "asc"]],
-    dom: getUserTableDom(),
-    language: getUserTableLanguage(),
-    buttons: getUserTableButtons(),
-    initComplete: function () {
-      translateUserTableHeaders();
-    },
-  });
-  if (window.i18next) {
-    window.i18next.on && window.i18next.on("languageChanged", function () {
-      translateUserTableHeaders();
     });
+    if (window.i18next) {
+      window.i18next.on && window.i18next.on("languageChanged", function () {
+        translateUserTableHeaders();
+      });
+    }
   }
 }
 
@@ -509,7 +510,7 @@ function getUserTableColumnDefs(isDeactive) {
       },
     },
     {
-      targets: isDeactive ? 5 : 5, // Last Login (active) hoặc Deleted At (deactive)
+      targets: isDeactive ? 5 : 5,
       render: function (data, type, full) {
         if (isDeactive) {
           if (full.deletedAt || full.DeletedAt) {
