@@ -44,7 +44,7 @@ jobs:
         echo "Deploying to production environment..."
         
         # Pull the latest image
-        docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:main
+        docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:master
         
         # Create production docker-compose file
         cat > docker-compose.production.yml << 'EOF'
@@ -105,7 +105,7 @@ jobs:
               - microservice-network-production
 
           auth-service:
-            image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:main
+            image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:master
             container_name: auth-service-production
             working_dir: /app/AuthService
             ports:
@@ -123,7 +123,7 @@ jobs:
             restart: always
 
           file-service:
-            image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:main
+            image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:master
             container_name: file-service-production
             working_dir: /app/FileService
             ports:
@@ -149,7 +149,7 @@ jobs:
             restart: always
 
           gateway-api:
-            image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:main
+            image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:master
             container_name: gateway-api-production
             working_dir: /app/GatewayApi
             ports:
@@ -165,7 +165,7 @@ jobs:
             restart: always
 
           worker-service:
-            image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:main
+            image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:master
             container_name: worker-service-production
             working_dir: /app/WorkerService
             command: dotnet WorkerService.dll
