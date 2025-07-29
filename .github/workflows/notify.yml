@@ -14,7 +14,6 @@ jobs:
     - name: Notify Slack/Discord
       if: always()
       run: |
-        # Thay thế YOUR_WEBHOOK_URL bằng webhook URL thực tế
         WEBHOOK_URL="${{ secrets.NOTIFICATION_WEBHOOK_URL }}"
         
         if [ -n "$WEBHOOK_URL" ]; then
