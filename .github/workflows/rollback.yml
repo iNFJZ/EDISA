@@ -42,7 +42,7 @@ jobs:
       id: get-tags
       run: |
         # Get available tags from registry
-        TAGS=$(docker run --rm -v /var/run/docker.sock:/var/run/docker.sock ghcr.io/your-username/your-repo:latest 2>/dev/null || echo "")
+        TAGS=$(docker run --rm -v /var/run/docker.sock:/var/run/docker.sock ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest 2>/dev/null || echo "")
         echo "available_tags=$TAGS" >> $GITHUB_OUTPUT
 
     - name: Determine rollback version
@@ -82,7 +82,7 @@ jobs:
         docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.rollback-version.outputs.version }}
         
         # Update docker-compose file to use the specific version
-        sed -i "s/image: ${{ env.REGISTRY }}\/${{ env.IMAGE_NAME }}:main/image: ${{ env.REGISTRY }}\/${{ env.IMAGE_NAME }}:${{ steps.rollback-version.outputs.version }}/g" docker-compose.production.yml
+        sed -i "s/image: ${{ env.REGISTRY }}\/${{ env.IMAGE_NAME }}:master/image: ${{ env.REGISTRY }}\/${{ env.IMAGE_NAME }}:${{ steps.rollback-version.outputs.version }}/g" docker-compose.production.yml
         
         # Restart services
         docker-compose -f docker-compose.production.yml down
