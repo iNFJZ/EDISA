@@ -4,6 +4,8 @@ using UserService.Models;
 using UserService.Repositories;
 using Shared.EmailModels;
 using UserService.Services;
+using System.Text.Json;
+using Shared.LanguageService;
 
 namespace UserService.Services;
 
@@ -14,20 +16,26 @@ public class UserService : IUserService
     private readonly ISessionService _sessionService;
     private readonly IEmailMessageService _emailMessageService;
     private readonly IUserCacheService _userCacheService;
+    private readonly INotificationService _notificationService;
+    private readonly ILanguageService _languageService;
 
-    public UserService(
-        IUserRepository userRepository, 
-        IMapper mapper, 
-        ISessionService sessionService, 
-        IEmailMessageService emailMessageService,
-        IUserCacheService userCacheService)
-    {
-        _userRepository = userRepository;
-        _mapper = mapper;
-        _sessionService = sessionService;
-        _emailMessageService = emailMessageService;
-        _userCacheService = userCacheService;
-    }
+            public UserService(
+            IUserRepository userRepository, 
+            IMapper mapper, 
+            ISessionService sessionService, 
+            IEmailMessageService emailMessageService,
+            IUserCacheService userCacheService,
+            INotificationService notificationService,
+            ILanguageService languageService)
+        {
+            _userRepository = userRepository;
+            _mapper = mapper;
+            _sessionService = sessionService;
+            _emailMessageService = emailMessageService;
+            _userCacheService = userCacheService;
+            _notificationService = notificationService;
+            _languageService = languageService;
+        }
 
     public async Task<(List<UserDto> Users, int TotalCount, int TotalPages)> GetUsersAsync(UserQueryDto query)
     {
@@ -192,105 +200,57 @@ public class UserService : IUserService
         return _mapper.Map<UserDto>(user);
     }
 
-    public async Task<bool> UpdateUserAsync(Guid id, UpdateUserDto dto)
+    public async Task<bool> UpdateUserAsync(Guid id, UpdateUserDto dto, string language = "en")
     {
         var user = await _userRepository.GetByIdAsync(id);
-        if (user == null || user.IsDeleted)
+        if (user == null)
             return false;
 
-        if (!string.IsNullOrWhiteSpace(dto.FullName))
-        {
-            if (!System.Text.RegularExpressions.Regex.IsMatch(dto.FullName, @"^[a-zA-ZÀ-ỹ\s]*$"))
-                throw new ArgumentException("Full name can only contain letters, spaces, and Vietnamese characters");
-            user.FullName = dto.FullName.Trim();
-        }
+        var originalEmail = user.Email;
+        var originalUsername = user.Username;
 
-        if (!string.IsNullOrWhiteSpace(dto.PhoneNumber))
-        {
-            if (dto.PhoneNumber.Length > 11)
-                throw new ArgumentException("Phone number must be less than 11 characters");
-            if (!System.Text.RegularExpressions.Regex.IsMatch(dto.PhoneNumber, @"^[0-9]{10,11}$"))
-                throw new ArgumentException("Phone number must be 10-11 digits and contain only numbers");
-            user.PhoneNumber = dto.PhoneNumber.Trim();
-        }
-
-        if (dto.DateOfBirth.HasValue)
-        {
-            var dateOfBirth = dto.DateOfBirth.Value;
-            dateOfBirth = dateOfBirth.Date;
-            
-            if (dateOfBirth > DateTime.UtcNow.Date)
-                throw new ArgumentException("Date of birth cannot be in the future");
-            user.DateOfBirth = dateOfBirth;
-        }
-
-        if (!string.IsNullOrWhiteSpace(dto.Address))
-        {
-            if (dto.Address.Length > 200)
-                throw new ArgumentException("Address must be less than 200 characters");
-            user.Address = dto.Address.Trim();
-        }
-
-        if (!string.IsNullOrWhiteSpace(dto.Bio))
-        {
-            if (dto.Bio.Length > 500)
-                throw new ArgumentException("Bio must be less than 500 characters");
-            user.Bio = dto.Bio.Trim();
-        }
-
-        if (dto.Status.HasValue)
-        {
-            var newStatus = dto.Status.Value;
-            var oldStatus = user.Status;
-            
-            if (!Enum.IsDefined(typeof(UserStatus), newStatus))
-            {
-                throw new ArgumentException($"Invalid status value: {newStatus}");
-            }
-            
-            user.Status = newStatus;
-            if (newStatus == UserStatus.Banned && user.DeletedAt == null)
-            {
-                user.DeletedAt = DateTime.UtcNow;
-            }
-            else if (oldStatus == UserStatus.Banned && newStatus != UserStatus.Banned && user.DeletedAt != null)
-            {
-                user.DeletedAt = null;
-            }
-        }
-
-        if (dto.ProfilePicture != null)
-        {
-            if (dto.ProfilePicture.Length > 200000)
-                throw new ArgumentException("Profile picture must be less than 200,000 characters");
-            user.ProfilePicture = dto.ProfilePicture.Trim();
-        }
-        else
-        {
-            user.ProfilePicture = null;
-        }
-
-        if (dto.IsVerified.HasValue)
-        {
-            user.IsVerified = dto.IsVerified.Value;
-        }
-        else
-        {
-            if (user.Status == UserStatus.Active || user.Status == UserStatus.Suspended)
-            {
-                user.IsVerified = true;
-            } else {
-                user.IsVerified = false;
-            }
-        }
+        _mapper.Map(dto, user);
         user.UpdatedAt = DateTime.UtcNow;
 
-        await _userRepository.UpdateAsync(user);
-        
-        await _userCacheService.DeleteUserAsync(user.Id);
-        await _userCacheService.SetUserAsync(user, TimeSpan.FromMinutes(30));
-        
-        return true;
+        var updatedUser = await _userRepository.UpdateAsync(user);
+        if (updatedUser != null)
+        {
+            await _userCacheService.SetUserAsync(updatedUser, TimeSpan.FromMinutes(30));
+
+            if (originalEmail != updatedUser.Email)
+            {
+                await _sessionService.RemoveAllUserSessionsAsync(updatedUser.Id);
+                await _sessionService.RemoveAllActiveTokensForUserAsync(updatedUser.Id);
+            }
+
+            if (originalUsername != updatedUser.Username)
+            {
+                await _sessionService.RemoveAllUserSessionsAsync(updatedUser.Id);
+                await _sessionService.RemoveAllActiveTokensForUserAsync(updatedUser.Id);
+            }
+
+            var notificationData = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                userId = updatedUser.Id,
+                email = updatedUser.Email,
+                username = updatedUser.Username,
+                fullName = updatedUser.FullName,
+                updatedAt = updatedUser.UpdatedAt
+            });
+
+            var title = _languageService.GetText("profileUpdated", language);
+            var message = _languageService.GetText("profileUpdatedMessage", language);
+            
+            await _notificationService.SendNotificationAsync(
+                updatedUser.Id.ToString(),
+                title,
+                message,
+                "info",
+                notificationData
+            );
+        }
+
+        return updatedUser != null;
     }
 
     public async Task<bool> DeleteUserAsync(Guid userId, string language = "en")

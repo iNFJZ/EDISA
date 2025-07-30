@@ -75,7 +75,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       : { "Content-Type": "application/json" };
   }
 
-  const API_BASE = "http://localhost:5050/api/User";
+  const API_BASE = "/api/User";
 
   const form = document.getElementById("editUserForm");
   const removeProfilePictureBtn = document.getElementById(

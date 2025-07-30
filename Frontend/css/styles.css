@@ -1667,3 +1667,95 @@ body {
     height: 28px;
   }
 }
+
+/* Notification Dropdown Styles */
+.dropdown-notifications-list {
+    max-height: 300px;
+    overflow-y: auto;
+    transition: max-height 0.3s ease, height 0.3s ease;
+    scroll-behavior: smooth;
+}
+
+.dropdown-notifications-item {
+    transition: all 0.3s ease;
+    cursor: pointer;
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.dropdown-notifications-item:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.dropdown-notifications-item.unread {
+    background-color: rgba(13, 110, 253, 0.05);
+}
+
+.dropdown-notifications-item.unread .unread-indicator {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    background-color: #28a745;
+    border-radius: 50%;
+    margin-left: 8px;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.7;
+        transform: scale(1.1);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+/* Notification badge */
+.badge-notifications {
+    display: inline !important;
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    font-size: 0.75rem;
+    min-width: 18px;
+    height: 18px;
+    line-height: 18px;
+    text-align: center;
+}
+
+/* Notification bell icon */
+.nav-item.dropdown-notifications .nav-link {
+    position: relative;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

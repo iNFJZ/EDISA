@@ -6,8 +6,8 @@
       "DownstreamHostAndPorts": [
         { "Host": "auth-service", "Port": 80 }
       ],
-      "UpstreamPathTemplate": "/api/auth/{everything}",
-      "UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ]
+      "UpstreamPathTemplate": "/api/Auth/{everything}",
+      "UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE", "HEAD" ]
     },
     {
       "DownstreamPathTemplate": "/api/File/{everything}",
@@ -16,7 +16,7 @@
         { "Host": "file-service", "Port": 80 }
       ],
       "UpstreamPathTemplate": "/api/File/{everything}",
-      "UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ],
+      "UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE", "HEAD" ],
       "AuthenticationOptions": {
         "AuthenticationProviderKey": "Bearer"
       },
@@ -29,7 +29,28 @@
         { "Host": "user-service", "Port": 80 }
       ],
       "UpstreamPathTemplate": "/api/User/{everything}",
-      "UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE", "PATCH" ]
+      "UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE", "PATCH", "HEAD" ]
+    },
+    {
+      "DownstreamPathTemplate": "/api/Notification/internal",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        { "Host": "notification-service", "Port": 80 }
+      ],
+      "UpstreamPathTemplate": "/api/Notification/internal",
+      "UpstreamHttpMethod": [ "POST" ]
+    },
+    {
+      "DownstreamPathTemplate": "/api/Notification/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        { "Host": "notification-service", "Port": 80 }
+      ],
+      "UpstreamPathTemplate": "/api/Notification/{everything}",
+      "UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE", "HEAD" ],
+      "AuthenticationOptions": {
+        "AuthenticationProviderKey": "Bearer"
+      }
     }
   ],
   "GlobalConfiguration": {

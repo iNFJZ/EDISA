@@ -1,15 +1,18 @@
-﻿using AuthService.Models;
-using AuthService.Repositories;
+﻿using AuthService.Data;
 using AuthService.DTOs;
 using AuthService.Exceptions;
-using Microsoft.Extensions.Logging;
-using System.Security.Cryptography;
-using System.IdentityModel.Tokens.Jwt;
-using Microsoft.IdentityModel.Tokens;
-using System.Text;
+using AuthService.Models;
+using AuthService.Repositories;
+using AuthService.Services;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
+using Microsoft.IdentityModel.Tokens;
+using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
 using Shared.EmailModels;
+using Shared.LanguageService;
 using OtpNet;
 using System.Drawing;
 using QRCoder;
@@ -29,6 +32,7 @@ namespace AuthService.Services
         private readonly int _accountLockMinutes;
         private readonly int _resetPasswordTokenExpiryMinutes;
         private readonly IHunterEmailVerifierService _emailVerifierService;
+        private readonly INotificationService _notificationService;
 
         public AuthService(
             IUserRepository repo, 
@@ -38,7 +42,8 @@ namespace AuthService.Services
             ILogger<AuthService> logger,
             IEmailMessageService emailMessageService,
             IConfiguration config,
-            IHunterEmailVerifierService emailVerifierService)
+            IHunterEmailVerifierService emailVerifierService,
+            INotificationService notificationService)
         {
             _repo = repo;
             _sessionService = sessionService;
@@ -48,9 +53,10 @@ namespace AuthService.Services
             _emailMessageService = emailMessageService;
             _config = config;
             _emailVerifierService = emailVerifierService;
-            _maxFailedLoginAttempts = int.Parse(_config["AuthPolicy:MaxFailedLoginAttempts"] ?? "3");
-            _accountLockMinutes = int.Parse(_config["AuthPolicy:AccountLockMinutes"] ?? "5");
-            _resetPasswordTokenExpiryMinutes = int.Parse(_config["AuthPolicy:ResetPasswordTokenExpiryMinutes"] ?? "15");
+            _notificationService = notificationService;
+            _maxFailedLoginAttempts = int.Parse(_config["AuthSettings:MaxFailedLoginAttempts"] ?? "5");
+            _accountLockMinutes = int.Parse(_config["AuthSettings:AccountLockMinutes"] ?? "30");
+            _resetPasswordTokenExpiryMinutes = int.Parse(_config["AuthSettings:ResetPasswordTokenExpiryMinutes"] ?? "60");
         }
 
         public async Task<(string token, string username, string suggestedUsername, string errorCode, string message)> RegisterAsync(RegisterWithAcceptDto dto, bool acceptSuggestedUsername = false)
@@ -139,15 +145,23 @@ namespace AuthService.Services
                     await _sessionService.CreateUserSessionAsync(user.Id, sessionId, tokenExpiry);
                     await _sessionService.SetUserLoginStatusAsync(user.Id, true, tokenExpiry);
 
+                    var language = dto.Language ?? "en";
+                    await _notificationService.SendNotificationAsync(
+                        user.Id.ToString(),
+                        "welcomeToEdisa",
+                        "welcomeMessage",
+                        "success"
+                    );
+
                     var verifyToken = GenerateEmailVerifyToken(user.Id, user.Email);
-                    var verifyLink = $"{_config["Frontend:BaseUrl"]}/auth/account-activated.html?token={verifyToken}&lang={dto.Language ?? "en"}";
+                    var verifyLink = $"{_config["Frontend:BaseUrl"]}/auth/account-activated.html?token={verifyToken}&lang={language}";
                     await _emailMessageService.PublishRegisterNotificationAsync(new RegisterNotificationEmailEvent
                     {
                         To = user.Email,
                         Username = user.Username,
                         RegisterAt = DateTime.UtcNow,
                         VerifyLink = verifyLink,
-                        Language = dto.Language ?? "en"
+                        Language = language
                     });
                     return (token, finalUsername, null, null, null);
                 }
@@ -239,6 +253,13 @@ namespace AuthService.Services
                 user.Status = UserStatus.Active;
                 user.UpdatedAt = DateTime.UtcNow;
                 await _repo.UpdateAsync(user);
+
+                await _notificationService.SendNotificationAsync(
+                    user.Id.ToString(),
+                    "accountActivatedTitle",
+                    "accountActivatedDesc",
+                    "success"
+                );
                 var expClaim2 = jwt.Claims.FirstOrDefault(c => c.Type == "exp");
                 if (expClaim2 != null && long.TryParse(expClaim2.Value, out long expUnix2)) {
                     var expDate2 = DateTimeOffset.FromUnixTimeSeconds(expUnix2).UtcDateTime;
@@ -374,6 +395,14 @@ namespace AuthService.Services
             await _sessionService.SetUserLoginStatusAsync(user.Id, true, tokenExpiry);
             user.LastLoginAt = DateTime.UtcNow;
             await _repo.UpdateAsync(user);
+
+            await _notificationService.SendNotificationAsync(
+                user.Id.ToString(),
+                "loginWelcome",
+                "Welcome back! You have successfully logged in.",
+                "info"
+            );
+
             return new LoginResultDto { Token = token, Require2FA = false, UserId = user.Id, Message = "Login successful" };
         }
 
@@ -585,6 +614,13 @@ namespace AuthService.Services
                 ChangeAt = DateTime.UtcNow,
                 Language = dto.Language ?? "en"
             });
+
+            await _notificationService.SendNotificationAsync(
+                userId.ToString(),
+                "passwordChangedSuccessfully",
+                "Your password has been changed successfully.",
+                "success"
+            );
 
             return true;
         }

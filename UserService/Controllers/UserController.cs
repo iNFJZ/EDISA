@@ -161,7 +161,10 @@ public class UserController : ControllerBase
 
         try
         {
-            var result = await _userService.UpdateUserAsync(id, dto);
+            var userLanguageClaim = User.FindFirst("language");
+            var userLanguage = userLanguageClaim?.Value ?? "en";
+            
+            var result = await _userService.UpdateUserAsync(id, dto, userLanguage);
             if (result)
             {
                 return Ok(new { success = true, message = "User updated successfully" });

@@ -28,4 +28,6 @@ public class UpdateUserDto
 
     [StringLength(200000)]
     public string? ProfilePicture { get; set; }
+
+    public string? Language { get; set; }
 } 

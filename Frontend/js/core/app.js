@@ -4,7 +4,7 @@ import {
   logout,
   sanitizeInput,
   isValidEmail,
-} from "./auth-utils.js";
+} from "../auth/utils.js";
 import {
   fetchUsers,
   fetchDeletedUsers,
@@ -18,7 +18,7 @@ import {
   getUserByUsername,
 } from "./api.js";
 
-const API_BASE_URL = "http://localhost:5050/api";
+const API_BASE_URL = "/api";
 
 let currentUser = null;
 let authToken = localStorage.getItem("authToken") || null;

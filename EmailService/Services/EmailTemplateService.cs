@@ -19,13 +19,13 @@ namespace EmailService.Services
         private Dictionary<string, Dictionary<string, object>> LoadLangFiles()
         {
             var langFiles = new Dictionary<string, Dictionary<string, object>>();
-            var frontendPath = _config["Frontend:Path"] ?? Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "..", "frontend", "assets", "lang");
+            var sharedPath = _config["Frontend:Path"] ?? Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "..", "Shared", "LanguageFiles");
             
             var languages = new[] { "en", "vi", "ja" };
             
             foreach (var lang in languages)
             {
-                var langFile = Path.Combine(frontendPath, $"{lang}.json");
+                var langFile = Path.Combine(sharedPath, $"{lang}.json");
                 if (File.Exists(langFile))
                 {
                     try

@@ -51,7 +51,7 @@
       class="template-customizer-theme-css"
     />
     <link rel="stylesheet" href="/assets/css/demo.css" />
-    <link rel="stylesheet" href="/css/styles.css" />
+    <link rel="stylesheet" href="/assets/css/styles.css" />
     <!-- Vendors CSS -->
     <link
       rel="stylesheet"
@@ -65,6 +65,11 @@
       rel="stylesheet"
       href="/assets/vendor/libs/typeahead-js/typeahead.css"
     />
+    <link rel="stylesheet" href="/assets/vendor/libs/datatables-bs5/datatables.bootstrap5.css" />
+    <link rel="stylesheet" href="/assets/vendor/libs/datatables-responsive-bs5/responsive.bootstrap5.css" />
+    <link rel="stylesheet" href="/assets/vendor/libs/datatables-buttons-bs5/buttons.bootstrap5.css" />
+    <link rel="stylesheet" href="/assets/vendor/libs/select2/select2.css" />
+    <link rel="stylesheet" href="/assets/vendor/libs/@form-validation/umd/styles/index.min.css" />
     <!-- Page CSS -->
     <link rel="stylesheet" href="/assets/vendor/css/pages/page-auth.css" />
     <link rel="stylesheet" href="/css/auth.css" />
@@ -168,7 +173,7 @@
                 </li>
               </ul>
             </li>
-            <!-- Logout luôn ở cuối -->
+            <!-- Logout -->
             <li class="menu-item" style="margin-top:auto;">
               <a href="javascript:void(0);" class="menu-link" id="logout-btn">
                 <i class="menu-icon tf-icons ti ti-logout"></i>
@@ -279,6 +284,57 @@
                   </ul>
                 </li>
                 <!--/ Language -->
+                <!-- Notifications -->
+                <li class="nav-item dropdown-notifications navbar-dropdown dropdown me-3 me-xl-1">
+                  <a
+                    class="nav-link dropdown-toggle hide-arrow"
+                    href="javascript:void(0);"
+                    id="notificationToggle"
+                    data-bs-toggle="dropdown"
+                    data-bs-auto-close="outside"
+                    aria-expanded="false">
+                    <i class="ti ti-bell ti-md"></i>
+                    <span class="badge bg-danger rounded-pill badge-notifications">0</span>
+                  </a>
+                  <ul class="dropdown-menu dropdown-menu-end py-0" id="notificationDropdown">
+                    <li class="dropdown-menu-header border-bottom">
+                      <div class="dropdown-header d-flex align-items-center py-3">
+                        <h5 class="text-body mb-0 me-auto" data-i18n="notifications">Notification</h5>
+                        <div class="d-flex gap-2">
+                          <a
+                            href="javascript:void(0)"
+                            id="markAllReadBtn"
+                            class="dropdown-notifications-all text-body"
+                            data-bs-toggle="tooltip"
+                            data-bs-placement="top"
+                            data-i18n-title="markAllAsRead"
+                            ><i class="ti ti-mail-opened fs-4"></i
+                          ></a>
+                          <a
+                            href="javascript:void(0)"
+                            id="deleteAllBtn"
+                            class="dropdown-notifications-delete-all text-body"
+                            data-bs-toggle="tooltip"
+                            data-bs-placement="top"
+                            data-i18n-title="deleteAllNotifications"
+                            ><i class="ti ti-trash fs-4"></i
+                          ></a>
+                        </div>
+                      </div>
+                    </li>
+                    <li class="dropdown-notifications-list scrollable-container">
+                      <ul class="list-group list-group-flush">
+                        <!-- Notifications will be loaded here -->
+                      </ul>
+                    </li>
+                    <li class="dropdown-menu-footer border-top">
+                      <a
+                        href="javascript:void(0);"
+                        class="dropdown-item d-flex justify-content-center text-primary p-2 h-px-40 mb-1 align-items-center">
+                        <span data-i18n="viewAllNotifications">View all notifications</span>
+                      </a>
+                    </li>
+                  </ul>
                 <!-- User -->
                 <li class="nav-item navbar-dropdown dropdown-user dropdown">
                   <a
@@ -348,7 +404,7 @@
                       </a>
                     </li>
                     <li>
-                      <a class="dropdown-item" href="/admin/profile/notifications.html">
+                                              <a class="dropdown-item" href="javascript:void(0);">
                         <i class="ti ti-settings me-2 ti-sm"></i>
                         <span class="align-middle" data-i18n="settings"
                           >Settings</span
@@ -635,10 +691,13 @@
 
     <!-- Toastr JS -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
-    <script src="/js/notification.js"></script>
-    <script src="/js/error-handler.js"></script>
+    <script src="/js/utils/notification.js"></script>
+    <script src="/js/utils/error-handler.js"></script>
+    <!-- SignalR JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/7.0.0/signalr.min.js"></script>
     <!-- Page JS -->
-    <script src="/js/admin-auth.js"></script>
+    <script src="/js/auth/admin.js"></script>
+    <script src="/js/notifications/client.js"></script>
     <script>
       updateUserStatsDashboard();
     </script>

@@ -40,8 +40,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateAudience = true,
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
-            ValidIssuer = builder.Configuration["JwtSettings:Issuer"] ?? "http://localhost:5001",
-            ValidAudience = builder.Configuration["JwtSettings:Audience"] ?? "http://localhost:5001",
+            ValidIssuer = builder.Configuration["JwtSettings:Issuer"] ?? "EDISA",
+            ValidAudience = builder.Configuration["JwtSettings:Audience"] ?? "EDISA",
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["JwtSettings:Key"] ?? "thisismyverystrongsecretkey1234567890"))
         };
     });
@@ -63,6 +63,7 @@ app.UseCors("AllowFrontend");
 app.UseAuthentication();
 app.UseAuthorization();
 
+// Configure Ocelot
 await app.UseOcelot();
 
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", service = "GatewayApi", timestamp = DateTime.UtcNow }));

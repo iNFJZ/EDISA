@@ -39,7 +39,7 @@ class AdminAuth {
 
   async validateToken(token) {
     try {
-      const response = await fetch("http://localhost:5050/api/Auth/validate", {
+              const response = await fetch("/api/Auth/validate", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -74,7 +74,7 @@ class AdminAuth {
     const token = localStorage.getItem("authToken");
     try {
       if (token) {
-        await fetch("http://localhost:5050/api/Auth/logout", {
+        await fetch("/api/Auth/logout", {
           method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
@@ -168,7 +168,7 @@ class AdminAuth {
     $(".user-role").text("Admin");
     try {
       const response = await fetch(
-        `http://localhost:5050/api/User/${userInfo.id}`,
+        `/api/User/${userInfo.id}`,
         {
           headers: this.getAuthHeaders(),
         },
@@ -228,7 +228,7 @@ function loadActiveUsersTable() {
       serverSide: true,
       processing: true,
       ajax: {
-        url: "http://localhost:5050/api/User",
+        url: "/api/User",
         type: "GET",
         data: function (d) {
           return {
@@ -305,7 +305,7 @@ function loadAllUsersTable() {
       serverSide: true,
       processing: true,
       ajax: {
-        url: "http://localhost:5050/api/User?includeDeleted=true",
+        url: "/api/User?includeDeleted=true",
         type: "GET",
         data: function (d) {
           return {
@@ -389,7 +389,7 @@ function loadDeactiveUsersTable() {
       serverSide: true,
       processing: true,
       ajax: {
-        url: "http://localhost:5050/api/User?includeDeleted=true",
+        url: "/api/User?includeDeleted=true",
         type: "GET",
         data: function (d) {
           return {
@@ -573,7 +573,6 @@ function getUserTableLanguage() {
     if (window.i18next && window.i18next.isInitialized) {
       return window.i18next.t(key);
     }
-    // Fallback translations
     const fallbacks = {
       searchPlaceholder: "Search...",
       export: "Export",
@@ -632,7 +631,7 @@ function getUserTableButtons() {
       const token = localStorage.getItem("authToken");
 
       const countResponse = await fetch(
-        "http://localhost:5050/api/User?includeDeleted=true&page=1&pageSize=1",
+        "/api/User?includeDeleted=true&page=1&pageSize=1",
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -656,7 +655,7 @@ function getUserTableButtons() {
       }
 
       const response = await fetch(
-        `http://localhost:5050/api/User?includeDeleted=true&pageSize=${totalCount}`,
+        `/api/User?includeDeleted=true&pageSize=${totalCount}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -1036,7 +1035,7 @@ function handleAddUser() {
   if (phone) data.phoneNumber = phone;
   const token = localStorage.getItem("authToken");
 
-  fetch("http://localhost:5050/api/Auth/register", {
+  fetch("/api/Auth/register", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -1053,7 +1052,6 @@ function handleAddUser() {
       return res.json();
     })
     .then((res) => {
-      // console.log("Add user response:", res);
       if (res.success || res.id) {
         safeToastrMessage("clear");
         let backendUsername = res.username || username;
@@ -1128,7 +1126,6 @@ function handleAddUser() {
     .catch((error) => {
       console.error("Add user error:", error);
       if (error.status === 400 || error.status === 409) {
-        // Handle specific error cases
         if (
           error.errorCode === "EMAIL_ALREADY_EXISTS" ||
           error.errorCode === "USER_ALREADY_EXISTS"
@@ -1155,7 +1152,6 @@ function handleAddUser() {
     });
 }
 
-// --- CropperJS integration ---
 let cropper = null;
 let selectedImageFile = null;
 let windowCropper = null;
@@ -1473,7 +1469,6 @@ function updateZoomDisplay(zoom) {
   }
 }
 
-// Drag & Drop functionality
 $(document).on("dragover", ".drag-drop-zone", function (e) {
   e.preventDefault();
   $(this).addClass("dragover");
@@ -1503,7 +1498,6 @@ $(document).on("click", ".drag-drop-zone", function () {
   $("#edit-profilePicture, #profile-picture-input").click();
 });
 
-// Handle image file
 function handleImageFile(file) {
   if (file.size > 5 * 1024 * 1024) {
     safeToastrMessage("error", window.i18next.t("imageSizeMustBeLessThan5MB"));
@@ -1632,7 +1626,6 @@ $("#cropImageModal").on("hidden.bs.modal", function () {
     $("#edit-profilePicture, #profile-picture-input").val("");
     selectedImageFile = null;
   }
-  // Show drag drop zone again
   $(".drag-drop-zone").removeClass("hidden");
 });
 
@@ -1814,7 +1807,7 @@ function handleUpdateUser(userId) {
     safeToastrMessage("error", window.i18next.t("authenticationRequired"));
     return;
   }
-  fetch(`http://localhost:5050/api/User/${userId}`, {
+  fetch(`/api/User/${userId}`, {
     method: "PUT",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -1895,7 +1888,7 @@ function deleteUser(userId) {
     console.error("Failed to parse JWT token:", e);
   }
 
-  fetch(`http://localhost:5050/api/User/${userId}`, {
+  fetch(`/api/User/${userId}`, {
     method: "DELETE",
     headers: { Authorization: `Bearer ${token}` },
   })
@@ -1941,7 +1934,7 @@ function restoreUser(userId) {
     return;
   }
 
-  fetch(`http://localhost:5050/api/User/${userId}/restore`, {
+  fetch(`/api/User/${userId}/restore`, {
     method: "PATCH",
     headers: { Authorization: `Bearer ${token}` },
   })
@@ -2002,7 +1995,7 @@ function reloadCurrentPageData() {
 function openEditUserModal(userId) {
   const token = localStorage.getItem("authToken");
   if (!userId || !token) return;
-  fetch(`http://localhost:5050/api/User/${userId}`, {
+  fetch(`/api/User/${userId}`, {
     headers: { Authorization: `Bearer ${token}` },
   })
     .then((res) => res.json())
@@ -2071,7 +2064,7 @@ function openEditUserModal(userId) {
 function openViewUserModal(userId) {
   const token = localStorage.getItem("authToken");
   if (!userId || !token) return;
-  fetch(`http://localhost:5050/api/User/${userId}`, {
+  fetch(`/api/User/${userId}`, {
     headers: { Authorization: `Bearer ${token}` },
   })
     .then((res) => res.json())
@@ -2270,7 +2263,7 @@ function updateUserStatsDashboard() {
 
   // First, get total count to determine optimal pageSize
   fetch(
-    "http://localhost:5050/api/User?includeDeleted=true&page=1&pageSize=1",
+    "/api/User?includeDeleted=true&page=1&pageSize=1",
     {
       headers: { Authorization: `Bearer ${token}` },
     },
@@ -2290,7 +2283,7 @@ function updateUserStatsDashboard() {
 
       // Now fetch all data with the actual total count as pageSize
       return fetch(
-        `http://localhost:5050/api/User?includeDeleted=true&pageSize=${totalCount}`,
+        `/api/User?includeDeleted=true&pageSize=${totalCount}`,
         {
           headers: { Authorization: `Bearer ${token}` },
         },
@@ -2371,7 +2364,7 @@ function getStatusBadge(status) {
 window.openDeleteUserModal = function (userId) {
   const token = localStorage.getItem("authToken");
   if (!userId || !token) return;
-  fetch(`http://localhost:5050/api/User/${userId}`, {
+  fetch(`/api/User/${userId}`, {
     headers: { Authorization: `Bearer ${token}` },
   })
     .then((res) => res.json())
@@ -2432,7 +2425,7 @@ window.openDeleteUserModal = function (userId) {
 window.openRestoreUserModal = function (userId) {
   const token = localStorage.getItem("authToken");
   if (!userId || !token) return;
-  fetch(`http://localhost:5050/api/User/${userId}`, {
+  fetch(`/api/User/${userId}`, {
     headers: { Authorization: `Bearer ${token}` },
   })
     .then((res) => res.json())
@@ -2490,7 +2483,6 @@ window.openRestoreUserModal = function (userId) {
     );
 };
 
-// Helper to generate SVG avatar as data URL
 function generateLetterAvatarFromUser(user) {
   let letter = "U";
   if (user && user.email && user.email.trim() !== "") {
@@ -2505,7 +2497,6 @@ function generateLetterAvatarFromUser(user) {
   return "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svg)));
 }
 
-// Patch DataTables avatar rendering to use the same logic
 if (typeof window.getUserTableColumnDefs === "function") {
   const oldDefs = window.getUserTableColumnDefs;
   window.getUserTableColumnDefs = function (isDeactive) {
@@ -2526,7 +2517,6 @@ if (typeof window.getUserTableColumnDefs === "function") {
   };
 }
 
-// Profile page functionality
 async function loadUserProfile() {
   try {
     const userInfo = window.adminAuth.getCurrentUserInfo();
@@ -2536,7 +2526,7 @@ async function loadUserProfile() {
     }
 
     const response = await fetch(
-      `http://localhost:5050/api/User/${userInfo.id}`,
+      `/api/User/${userInfo.id}`,
       {
         headers: window.adminAuth.getAuthHeaders(),
       },
@@ -2546,16 +2536,13 @@ async function loadUserProfile() {
       const data = await response.json();
       const user = data.data;
 
-      // Populate profile form
       $("#profile-fullName").val(user.fullName || "");
       $("#profile-email").val(user.email || "");
       $("#profile-phone").val(user.phone || "");
 
-      // Set profile picture
       if (user.profilePicture && user.profilePicture.trim() !== "") {
         $("#profile-picture-preview").attr("src", user.profilePicture).show();
       } else {
-        // Generate letter avatar
         const letter = (user.fullName || user.username || "U")
           .charAt(0)
           .toUpperCase();
@@ -2584,7 +2571,7 @@ async function saveUserProfile(formData) {
     }
 
     const response = await fetch(
-      `http://localhost:5050/api/User/${userInfo.id}`,
+      `/api/User/${userInfo.id}`,
       {
         method: "PUT",
         headers: {
@@ -2613,7 +2600,6 @@ async function saveUserProfile(formData) {
   }
 }
 
-// Settings page functionality
 function loadUserSettings() {
   try {
     const settings = JSON.parse(localStorage.getItem("userSettings") || "{}");
@@ -2643,10 +2629,9 @@ function saveUserSettings() {
     safeToastrMessage("success", window.i18next.t("settingsSavedSuccessfully"));
     if (lang) {
       window.i18next.changeLanguage(lang);
-      // Nếu đã đăng nhập, gọi API cập nhật ngôn ngữ vào profile
       const token = localStorage.getItem("authToken");
       if (token) {
-        fetch("http://localhost:5050/api/User/update-language", {
+        fetch("/api/User/update-language", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -2670,16 +2655,13 @@ function saveUserSettings() {
   }
 }
 
-// Initialize page-specific functionality
 function initializePageFunctionality() {
   const currentPage = window.location.pathname.split("/").pop();
 
   switch (currentPage) {
     case "pages-profile-user.html":
-      // Profile page
       loadUserProfile();
 
-      // Handle profile form submission
       $("#profile-form").on("submit", async function (e) {
         e.preventDefault();
 
@@ -2688,7 +2670,6 @@ function initializePageFunctionality() {
           phone: $("#profile-phone").val(),
         };
 
-        // Handle profile picture upload
         const fileInput = $("#profile-picture-input")[0];
         if (fileInput.files.length > 0) {
           const file = fileInput.files[0];
@@ -2703,7 +2684,6 @@ function initializePageFunctionality() {
         }
       });
 
-      // Handle profile picture preview
       $("#profile-picture-input").on("change", function () {
         const file = this.files[0];
         if (file) {
@@ -2773,7 +2753,6 @@ $(document).on("shown.bs.modal", "#cropImageModal", function () {
   }, 150);
 });
 
-// --- Change Password Logic for security.html ---
 document.addEventListener("DOMContentLoaded", function () {
   const form = document.getElementById("security-form");
   if (form) {
@@ -2810,7 +2789,7 @@ document.addEventListener("DOMContentLoaded", function () {
           localStorage.getItem("i18nextLng") ||
           "vi";
         const res = await fetch(
-          "http://localhost:5050/api/Auth/change-password",
+          "/api/Auth/change-password",
           {
             method: "POST",
             headers: {
@@ -2857,8 +2836,7 @@ document.addEventListener("DOMContentLoaded", function () {
       }
     });
   }
-});
-// --- End Change Password Logic ---
+}); 
 
 if (typeof window.i18next !== "undefined") {
   window.i18next.on("languageChanged", function () {
@@ -2909,7 +2887,7 @@ window.exportAllUsersToCSV = async function (buttonElement) {
     }
 
     const countRes = await fetch(
-      "http://localhost:5050/api/User?includeDeleted=true&page=1&pageSize=1",
+      "/api/User?includeDeleted=true&page=1&pageSize=1",
       {
         headers: { Authorization: `Bearer ${token}` },
       },
@@ -2936,7 +2914,7 @@ window.exportAllUsersToCSV = async function (buttonElement) {
     }
 
     const res = await fetch(
-      `http://localhost:5050/api/User?includeDeleted=true&pageSize=${totalCount}`,
+      `/api/User?includeDeleted=true&pageSize=${totalCount}`,
       {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       },
@@ -3111,7 +3089,6 @@ window.exportAllUsersToCSV = async function (buttonElement) {
   }
 };
 
-// Initialize export button when DOM is loaded
 document.addEventListener("DOMContentLoaded", function () {
   const btn = document.getElementById("export-all-users-btn");
   if (btn) {
@@ -3159,101 +3136,6 @@ function translateUserTableHeaders() {
   });
 }
 
-// --- Two-steps verification (OTP SMS) logic for security.html ---
-// $(document).ready(function () {
-//   if (!window.location.pathname.endsWith("security.html")) return;
-
-//   let otpPhone = "";
-//   let otpStep = 1;
-
-//   function resetOTPModal() {
-//     otpStep = 1;
-//     otpPhone = "";
-//     $("#modalEnableOTPPhone").val("").prop("disabled", false);
-//     $("#enableOTPForm .otp-section").remove();
-//     $("#enableOTPForm button[type='submit']").show();
-//     $("#enableOTPForm button[type='submit']").text(window.i18next ? window.i18next.t("submit") : "Submit");
-//   }
-
-//   $("#enableOTP").on("show.bs.modal", resetOTPModal);
-
-//   $("#enableOTPForm").off("submit").on("submit", async function (e) {
-//     e.preventDefault();
-//     if (otpStep === 1) {
-//       const phone = $("#modalEnableOTPPhone").val().trim();
-//       if (!phone || !/^\+?[0-9]{8,15}$/.test(phone)) {
-//         safeToastrMessage("error", window.i18next ? window.i18next.t("phoneNumberInvalidFormat") : "Invalid phone number");
-//         return;
-//       }
-//       otpPhone = phone;
-//       const btn = $(this).find("button[type='submit']");
-//       btn.prop("disabled", true).text(window.i18next ? window.i18next.t("sending") : "Sending...");
-//       try {
-//         const token = localStorage.getItem("authToken");
-//         const res = await fetch("http://localhost:5050/api/Auth/enable-2fa-sms", {
-//           method: "POST",
-//           headers: {
-//             "Content-Type": "application/json",
-//             Authorization: `Bearer ${token}`,
-//           },
-//           body: JSON.stringify({ phoneNumber: phone }),
-//         });
-//         const data = await res.json();
-//         if (res.ok && data.success) {
-//           safeToastrMessage("success", window.i18next ? window.i18next.t("otpSentToPhone") : "OTP sent to phone");
-//           $("#enableOTPForm .otp-section").remove();
-//           $("<div class='col-12 otp-section mt-2'>"
-//             + `<label class='form-label' for='otpInput'>${window.i18next ? window.i18next.t("enterOtpCode") : "Enter OTP code"}</label>`
-//             + "<input type='text' id='otpInput' class='form-control' maxlength='8' autocomplete='one-time-code' />"
-//             + "</div>").insertAfter($("#enableOTPForm .col-12").last());
-//           btn.text(window.i18next ? window.i18next.t("verify") : "Verify").prop("disabled", false);
-//           otpStep = 2;
-//         } else {
-//           safeToastrMessage("error", data.message || (window.i18next ? window.i18next.t("failedToSendOtp") : "Failed to send OTP"));
-//           btn.prop("disabled", false).text(window.i18next ? window.i18next.t("submit") : "Submit");
-//         }
-//       } catch (err) {
-//         safeToastrMessage("error", window.i18next ? window.i18next.t("failedToSendOtp") : "Failed to send OTP");
-//         btn.prop("disabled", false).text(window.i18next ? window.i18next.t("submit") : "Submit");
-//       }
-//     } else if (otpStep === 2) {
-//       const otp = $("#otpInput").val().trim();
-//       if (!otp || otp.length < 4) {
-//         safeToastrMessage("error", window.i18next ? window.i18next.t("otpInvalid") : "Invalid OTP");
-//         return;
-//       }
-//       const btn = $(this).find("button[type='submit']");
-//       btn.prop("disabled", true).text(window.i18next ? window.i18next.t("verifying") : "Verifying...");
-//       try {
-//         const token = localStorage.getItem("authToken");
-//         const res = await fetch("http://localhost:5050/api/Auth/verify-2fa-sms", {
-//           method: "POST",
-//           headers: {
-//             "Content-Type": "application/json",
-//             Authorization: `Bearer ${token}`,
-//           },
-//           body: JSON.stringify({ phoneNumber: otpPhone, otp }),
-//         });
-//         const data = await res.json();
-//         if (res.ok && data.success) {
-//           safeToastrMessage("success", window.i18next ? window.i18next.t("twoFactorEnabledSuccessfully") : "Two-factor authentication enabled");
-//           $("#enableOTP").modal("hide");
-//           setTimeout(() => window.location.reload(), 1000);
-//         } else {
-//           safeToastrMessage("error", data.message || (window.i18next ? window.i18next.t("otpInvalid") : "Invalid OTP"));
-//           btn.prop("disabled", false).text(window.i18next ? window.i18next.t("verify") : "Verify");
-//         }
-//       } catch (err) {
-//         safeToastrMessage("error", window.i18next ? window.i18next.t("otpInvalid") : "Invalid OTP");
-//         btn.prop("disabled", false).text(window.i18next ? window.i18next.t("verify") : "Verify");
-//       }
-//     }
-//   });
-// });
-
-// --- Google Authenticator (TOTP) logic for security.html ---
-
-// --- Disable 2FA (TOTP) logic for security.html ---
 $(document).ready(function () {
   if (!window.location.pathname.endsWith("security.html")) return;
 
@@ -3301,7 +3183,7 @@ $(document).ready(function () {
     $("#confirmDisableTOTPBtn").prop("disabled", true);
     try {
       const token = localStorage.getItem("authToken");
-      const res = await fetch("http://localhost:5050/api/Auth/disable-2fa-totp", {
+      const res = await fetch("/api/Auth/disable-2fa-totp", {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${token}`,
@@ -3348,7 +3230,7 @@ $(document).ready(async function () {
   let twoFactorEnabled = false;
   try {
     const token = localStorage.getItem("authToken");
-    const res = await fetch("http://localhost:5050/api/Auth/two-factor-status", {
+    const res = await fetch("/api/Auth/two-factor-status", {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (res.ok) {
@@ -3413,7 +3295,7 @@ $(document).off("click", "#enableTOTPBtn").on("click", "#enableTOTPBtn", async f
   $("#totpQrSection").html('<div class="text-muted">' + (window.i18next ? window.i18next.t("loading") : "Loading...") + '</div>');
   try {
     const lang = window.i18next?.language || localStorage.getItem("i18nextLng") || "en";
-    const res = await fetch("http://localhost:5050/api/Auth/enable-2fa-totp", {
+    const res = await fetch("/api/Auth/enable-2fa-totp", {
       method: "POST",
       headers: { 
         Authorization: `Bearer ${token}`,
@@ -3440,7 +3322,7 @@ $(document).off("click", "#enableTOTPBtn").on("click", "#enableTOTPBtn", async f
     $("#totpVerifyBtn").prop("disabled", true);
     $("#totpOtpError").text("");
     try {
-      const res = await fetch("http://localhost:5050/api/Auth/verify-2fa-totp", {
+      const res = await fetch("/api/Auth/verify-2fa-totp", {
         method: "POST",
         headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify(otp),

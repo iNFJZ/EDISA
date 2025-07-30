@@ -16,11 +16,11 @@ class ErrorHandler {
    */
   async loadLanguageData() {
     try {
-      const response = await fetch(`/assets/lang/${this.currentLanguage}.json`);
+      const response = await fetch(`/Shared/LanguageFiles/${this.currentLanguage}.json`);
       this.langData = await response.json();
     } catch (error) {
       try {
-        const response = await fetch("/assets/lang/en.json");
+        const response = await fetch("/Shared/LanguageFiles/en.json");
         this.langData = await response.json();
       } catch (fallbackError) {
       }

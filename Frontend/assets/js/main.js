@@ -213,7 +213,7 @@ if (document.getElementById("layout-menu")) {
           debug: false,
           fallbackLng: "vi",
           backend: {
-            loadPath: assetsPath + "lang/{{lng}}.json",
+            loadPath: "/Shared/LanguageFiles/{{lng}}.json",
           },
           returnObjects: true,
         })
@@ -282,6 +282,13 @@ if (document.getElementById("layout-menu")) {
         window.i18next.t(item.dataset.i18nPlaceholder),
       );
     });
+    let i18nTitleList = document.querySelectorAll("[data-i18n-title]");
+    i18nTitleList.forEach(function (item) {
+      item.setAttribute(
+        "title",
+        window.i18next.t(item.dataset.i18nTitle),
+      );
+    });
     document
       .querySelectorAll(".dropdown-language .dropdown-item")
       .forEach(function (el) {
@@ -304,45 +311,7 @@ if (document.getElementById("layout-menu")) {
     });
   }
 
-  // Notification
-  // ------------
-  const notificationMarkAsReadAll = document.querySelector(
-    ".dropdown-notifications-all",
-  );
-  const notificationMarkAsReadList = document.querySelectorAll(
-    ".dropdown-notifications-read",
-  );
 
-  // Notification: Mark as all as read
-  if (notificationMarkAsReadAll) {
-    notificationMarkAsReadAll.addEventListener("click", (event) => {
-      notificationMarkAsReadList.forEach((item) => {
-        item
-          .closest(".dropdown-notifications-item")
-          .classList.add("marked-as-read");
-      });
-    });
-  }
-  // Notification: Mark as read/unread onclick of dot
-  if (notificationMarkAsReadList) {
-    notificationMarkAsReadList.forEach((item) => {
-      item.addEventListener("click", (event) => {
-        item
-          .closest(".dropdown-notifications-item")
-          .classList.toggle("marked-as-read");
-      });
-    });
-  }
-
-  // Notification: Mark as read/unread onclick of dot
-  const notificationArchiveMessageList = document.querySelectorAll(
-    ".dropdown-notifications-archive",
-  );
-  notificationArchiveMessageList.forEach((item) => {
-    item.addEventListener("click", (event) => {
-      item.closest(".dropdown-notifications-item").remove();
-    });
-  });
 
   // Init helpers & misc
   // --------------------

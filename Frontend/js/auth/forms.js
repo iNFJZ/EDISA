@@ -3,10 +3,10 @@ import {
   isValidEmail,
   isValidPassword,
   isValidUsername,
-} from "./auth-utils.js";
+} from "./utils.js";
 import { apiRequest } from "./api.js";
 
-const API_BASE_URL = "http://localhost:5050/api";
+const API_BASE_URL = "/api";
 
 const GOOGLE_CLIENT_ID =
   "157841978934-fmgq60lshk9iq65s7h37mc7ta78m8nu3.apps.googleusercontent.com";

@@ -48,3 +48,43 @@ SET "PasswordHash" = '$2y$10$NM9q4XS3wI7lzYi6fPkFeewJutyiI0ydik89.LAtDY4rpCKCKmJ
 WHERE "Email" = 'user@edisa.com';
 
 --Mat khau la Testtest1
+
+-- Insert welcome notification for all users
+INSERT INTO "Notifications" (
+    "UserId", "Title", "Message", "Type", "Icon", "IsRead", "CreatedAt", "ReadAt", "Data"
+) VALUES 
+-- Notification for admin user
+('admin', 'Welcome to EDISA', 'Chào mừng bạn đến với hệ thống EDISA! Chúng tôi rất vui mừng được phục vụ bạn.', 'info', 'ti ti-bell', FALSE, NOW(), NULL, '{"actionUrl": "/admin/dashboard", "actionText": "Go to Dashboard"}'),
+-- Notification for user
+('user', 'Welcome to EDISA', 'Chào mừng bạn đến với hệ thống EDISA! Chúng tôi rất vui mừng được phục vụ bạn.', 'info', 'ti ti-bell', FALSE, NOW(), NULL, '{"actionUrl": "/admin/dashboard", "actionText": "Go to Dashboard"}'),
+-- Notifications for all other users (status 2, 3, 4)
+('alice', 'Welcome to EDISA', 'Chào mừng bạn đến với hệ thống EDISA! Chúng tôi rất vui mừng được phục vụ bạn.', 'info', 'ti ti-bell', FALSE, NOW(), NULL, '{"actionUrl": "/admin/dashboard", "actionText": "Go to Dashboard"}'),
+('bob', 'Welcome to EDISA', 'Chào mừng bạn đến với hệ thống EDISA! Chúng tôi rất vui mừng được phục vụ bạn.', 'info', 'ti ti-bell', FALSE, NOW(), NULL, '{"actionUrl": "/admin/dashboard", "actionText": "Go to Dashboard"}'),
+('carol', 'Welcome to EDISA', 'Chào mừng bạn đến với hệ thống EDISA! Chúng tôi rất vui mừng được phục vụ bạn.', 'info', 'ti ti-bell', FALSE, NOW(), NULL, '{"actionUrl": "/admin/dashboard", "actionText": "Go to Dashboard"}'),
+('david', 'Welcome to EDISA', 'Chào mừng bạn đến với hệ thống EDISA! Chúng tôi rất vui mừng được phục vụ bạn.', 'info', 'ti ti-bell', FALSE, NOW(), NULL, '{"actionUrl": "/admin/dashboard", "actionText": "Go to Dashboard"}'),
+('eva', 'Welcome to EDISA', 'Chào mừng bạn đến với hệ thống EDISA! Chúng tôi rất vui mừng được phục vụ bạn.', 'info', 'ti ti-bell', FALSE, NOW(), NULL, '{"actionUrl": "/admin/dashboard", "actionText": "Go to Dashboard"}'),
+('frank', 'Welcome to EDISA', 'Chào mừng bạn đến với hệ thống EDISA! Chúng tôi rất vui mừng được phục vụ bạn.', 'info', 'ti ti-bell', FALSE, NOW(), NULL, '{"actionUrl": "/admin/dashboard", "actionText": "Go to Dashboard"}'),
+('grace', 'Welcome to EDISA', 'Chào mừng bạn đến với hệ thống EDISA! Chúng tôi rất vui mừng được phục vụ bạn.', 'info', 'ti ti-bell', FALSE, NOW(), NULL, '{"actionUrl": "/admin/dashboard", "actionText": "Go to Dashboard"}'),
+('henry', 'Welcome to EDISA', 'Chào mừng bạn đến với hệ thống EDISA! Chúng tôi rất vui mừng được phục vụ bạn.', 'info', 'ti ti-bell', FALSE, NOW(), NULL, '{"actionUrl": "/admin/dashboard", "actionText": "Go to Dashboard"}'),
+('irene', 'Welcome to EDISA', 'Chào mừng bạn đến với hệ thống EDISA! Chúng tôi rất vui mừng được phục vụ bạn.', 'info', 'ti ti-bell', FALSE, NOW(), NULL, '{"actionUrl": "/admin/dashboard", "actionText": "Go to Dashboard"}'),
+('jack', 'Welcome to EDISA', 'Chào mừng bạn đến với hệ thống EDISA! Chúng tôi rất vui mừng được phục vụ bạn.', 'info', 'ti ti-bell', FALSE, NOW(), NULL, '{"actionUrl": "/admin/dashboard", "actionText": "Go to Dashboard"}'),
+('kate', 'Welcome to EDISA', 'Chào mừng bạn đến với hệ thống EDISA! Chúng tôi rất vui mừng được phục vụ bạn.', 'info', 'ti ti-bell', FALSE, NOW(), NULL, '{"actionUrl": "/admin/dashboard", "actionText": "Go to Dashboard"}'),
+('leo', 'Welcome to EDISA', 'Chào mừng bạn đến với hệ thống EDISA! Chúng tôi rất vui mừng được phục vụ bạn.', 'info', 'ti ti-bell', FALSE, NOW(), NULL, '{"actionUrl": "/admin/dashboard", "actionText": "Go to Dashboard"}'),
+('mia', 'Welcome to EDISA', 'Chào mừng bạn đến với hệ thống EDISA! Chúng tôi rất vui mừng được phục vụ bạn.', 'info', 'ti ti-bell', FALSE, NOW(), NULL, '{"actionUrl": "/admin/dashboard", "actionText": "Go to Dashboard"}'),
+('nick', 'Welcome to EDISA', 'Chào mừng bạn đến với hệ thống EDISA! Chúng tôi rất vui mừng được phục vụ bạn.', 'info', 'ti ti-bell', FALSE, NOW(), NULL, '{"actionUrl": "/admin/dashboard", "actionText": "Go to Dashboard"}'),
+('olivia', 'Welcome to EDISA', 'Chào mừng bạn đến với hệ thống EDISA! Chúng tôi rất vui mừng được phục vụ bạn.', 'info', 'ti ti-bell', FALSE, NOW(), NULL, '{"actionUrl": "/admin/dashboard", "actionText": "Go to Dashboard"}'),
+('peter', 'Welcome to EDISA', 'Chào mừng bạn đến với hệ thống EDISA! Chúng tôi rất vui mừng được phục vụ bạn.', 'info', 'ti ti-bell', FALSE, NOW(), NULL, '{"actionUrl": "/admin/dashboard", "actionText": "Go to Dashboard"}'),
+('quinn', 'Welcome to EDISA', 'Chào mừng bạn đến với hệ thống EDISA! Chúng tôi rất vui mừng được phục vụ bạn.', 'info', 'ti ti-bell', FALSE, NOW(), NULL, '{"actionUrl": "/admin/dashboard", "actionText": "Go to Dashboard"}'),
+('rachel', 'Welcome to EDISA', 'Chào mừng bạn đến với hệ thống EDISA! Chúng tôi rất vui mừng được phục vụ bạn.', 'info', 'ti ti-bell', FALSE, NOW(), NULL, '{"actionUrl": "/admin/dashboard", "actionText": "Go to Dashboard"}'),
+('sam', 'Welcome to EDISA', 'Chào mừng bạn đến với hệ thống EDISA! Chúng tôi rất vui mừng được phục vụ bạn.', 'info', 'ti ti-bell', FALSE, NOW(), NULL, '{"actionUrl": "/admin/dashboard", "actionText": "Go to Dashboard"}'),
+('tina', 'Welcome to EDISA', 'Chào mừng bạn đến với hệ thống EDISA! Chúng tôi rất vui mừng được phục vụ bạn.', 'info', 'ti ti-bell', FALSE, NOW(), NULL, '{"actionUrl": "/admin/dashboard", "actionText": "Go to Dashboard"}'),
+('ursula', 'Welcome to EDISA', 'Chào mừng bạn đến với hệ thống EDISA! Chúng tôi rất vui mừng được phục vụ bạn.', 'info', 'ti ti-bell', FALSE, NOW(), NULL, '{"actionUrl": "/admin/dashboard", "actionText": "Go to Dashboard"}'),
+('victor', 'Welcome to EDISA', 'Chào mừng bạn đến với hệ thống EDISA! Chúng tôi rất vui mừng được phục vụ bạn.', 'info', 'ti ti-bell', FALSE, NOW(), NULL, '{"actionUrl": "/admin/dashboard", "actionText": "Go to Dashboard"}'),
+('wendy', 'Welcome to EDISA', 'Chào mừng bạn đến với hệ thống EDISA! Chúng tôi rất vui mừng được phục vụ bạn.', 'info', 'ti ti-bell', FALSE, NOW(), NULL, '{"actionUrl": "/admin/dashboard", "actionText": "Go to Dashboard"}'),
+('xander', 'Welcome to EDISA', 'Chào mừng bạn đến với hệ thống EDISA! Chúng tôi rất vui mừng được phục vụ bạn.', 'info', 'ti ti-bell', FALSE, NOW(), NULL, '{"actionUrl": "/admin/dashboard", "actionText": "Go to Dashboard"}'),
+('yara', 'Welcome to EDISA', 'Chào mừng bạn đến với hệ thống EDISA! Chúng tôi rất vui mừng được phục vụ bạn.', 'info', 'ti ti-bell', FALSE, NOW(), NULL, '{"actionUrl": "/admin/dashboard", "actionText": "Go to Dashboard"}'),
+('zane', 'Welcome to EDISA', 'Chào mừng bạn đến với hệ thống EDISA! Chúng tôi rất vui mừng được phục vụ bạn.', 'info', 'ti ti-bell', FALSE, NOW(), NULL, '{"actionUrl": "/admin/dashboard", "actionText": "Go to Dashboard"}'),
+('amy', 'Welcome to EDISA', 'Chào mừng bạn đến với hệ thống EDISA! Chúng tôi rất vui mừng được phục vụ bạn.', 'info', 'ti ti-bell', FALSE, NOW(), NULL, '{"actionUrl": "/admin/dashboard", "actionText": "Go to Dashboard"}'),
+('brian', 'Welcome to EDISA', 'Chào mừng bạn đến với hệ thống EDISA! Chúng tôi rất vui mừng được phục vụ bạn.', 'info', 'ti ti-bell', FALSE, NOW(), NULL, '{"actionUrl": "/admin/dashboard", "actionText": "Go to Dashboard"}'),
+('claire', 'Welcome to EDISA', 'Chào mừng bạn đến với hệ thống EDISA! Chúng tôi rất vui mừng được phục vụ bạn.', 'info', 'ti ti-bell', FALSE, NOW(), NULL, '{"actionUrl": "/admin/dashboard", "actionText": "Go to Dashboard"}'),
+('dan', 'Welcome to EDISA', 'Chào mừng bạn đến với hệ thống EDISA! Chúng tôi rất vui mừng được phục vụ bạn.', 'info', 'ti ti-bell', FALSE, NOW(), NULL, '{"actionUrl": "/admin/dashboard", "actionText": "Go to Dashboard"}');

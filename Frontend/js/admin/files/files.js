@@ -14,7 +14,7 @@ function formatFileSize(size) {
 async function fetchAndRenderFiles() {
   try {
     const token = localStorage.getItem("authToken");
-    const res = await fetch("http://localhost:5050/api/File/list", {
+            const res = await fetch("/api/File/list", {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
     if (!res.ok) throw new Error("Failed to fetch file list");
@@ -47,7 +47,7 @@ function openDeleteFileModal(file) {
     try {
       const token = localStorage.getItem("authToken");
       const res = await fetch(
-        `http://localhost:5050/api/File/delete/${encodeURIComponent(file.fileName)}`,
+        `/api/File/delete/${encodeURIComponent(file.fileName)}`,
         {
           method: "DELETE",
           headers: token ? { Authorization: `Bearer ${token}` } : {},

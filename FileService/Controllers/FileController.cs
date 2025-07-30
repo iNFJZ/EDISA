@@ -10,6 +10,7 @@ using FileService.DTOs;
 using System.IdentityModel.Tokens.Jwt;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Localization;
+using System.Text.Json;
 namespace FileService.Controllers
 {
     [ApiController]
@@ -22,19 +23,22 @@ namespace FileService.Controllers
         private readonly ILogger<FileController> _logger;
         private readonly IEmailMessageService _emailMessageService;
         private readonly IStringLocalizer<FileController> _localizer;
+        private readonly INotificationService _notificationService;
 
         public FileController(
             IFileService fileService, 
             IFileValidationService validationService,
             ILogger<FileController> logger,
             IEmailMessageService emailMessageService,
-            IStringLocalizer<FileController> localizer)
+            IStringLocalizer<FileController> localizer,
+            INotificationService notificationService)
         {
             _fileService = fileService;
             _validationService = validationService;
             _logger = logger;
             _emailMessageService = emailMessageService;
             _localizer = localizer;
+            _notificationService = notificationService;
         }
 
         [HttpPost("upload")]
@@ -88,6 +92,26 @@ namespace FileService.Controllers
                     {
                         _logger.LogWarning(emailEx, "Failed to send email notification for file: {FileName}. File was uploaded successfully.", file.FileName);
                     }
+
+                    // Send real-time notification
+                    try
+                    {
+                        var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                        if (!string.IsNullOrEmpty(userId))
+                        {
+                            await _notificationService.SendNotificationAsync(
+                                userId,
+                                "File Uploaded Successfully",
+                                $"Your file '{file.FileName}' has been uploaded successfully.",
+                                "success",
+                                JsonSerializer.Serialize(new { fileName = file.FileName, eventType = "upload" })
+                            );
+                        }
+                    }
+                    catch (Exception notificationEx)
+                    {
+                        _logger.LogWarning(notificationEx, "Failed to send real-time notification for file: {FileName}. File was uploaded successfully.", file.FileName);
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -136,6 +160,26 @@ namespace FileService.Controllers
                 catch (Exception emailEx)
                 {
                     _logger.LogWarning(emailEx, "Failed to send email notification for download: {FileName}. File was downloaded successfully.", fileName);
+                }
+
+                // Send real-time notification
+                try
+                {
+                    var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                    if (!string.IsNullOrEmpty(userId))
+                    {
+                        await _notificationService.SendNotificationAsync(
+                            userId,
+                            "File Downloaded Successfully",
+                            $"Your file '{fileName}' has been downloaded successfully.",
+                            "info",
+                            JsonSerializer.Serialize(new { fileName = fileName, eventType = "download" })
+                        );
+                    }
+                }
+                catch (Exception notificationEx)
+                {
+                    _logger.LogWarning(notificationEx, "Failed to send real-time notification for download: {FileName}. File was downloaded successfully.", fileName);
                 }
 
                 return File(stream, "application/octet-stream", fileName);
@@ -198,6 +242,26 @@ namespace FileService.Controllers
                 catch (Exception emailEx)
                 {
                     _logger.LogWarning(emailEx, "Failed to send email notification for delete: {FileName}. File was deleted successfully.", fileName);
+                }
+
+                // Send real-time notification
+                try
+                {
+                    var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                    if (!string.IsNullOrEmpty(userId))
+                    {
+                        await _notificationService.SendNotificationAsync(
+                            userId,
+                            "File Deleted Successfully",
+                            $"Your file '{fileName}' has been deleted successfully.",
+                            "warning",
+                            JsonSerializer.Serialize(new { fileName = fileName, eventType = "delete" })
+                        );
+                    }
+                }
+                catch (Exception notificationEx)
+                {
+                    _logger.LogWarning(notificationEx, "Failed to send real-time notification for delete: {FileName}. File was deleted successfully.", fileName);
                 }
 
                 return Ok(new { message = _localizer["FileDeletedSuccessfully"] });

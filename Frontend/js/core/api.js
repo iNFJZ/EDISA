@@ -1,6 +1,6 @@
-import { getToken, logout } from "./auth-utils.js";
+import { getToken, logout } from "../auth/utils.js";
 
-const API_BASE_URL = "http://localhost:5050/api";
+const API_BASE_URL = "/api";
 
 export async function apiRequest(path, options = {}) {
   const token = getToken();
@@ -23,11 +23,9 @@ export async function apiRequest(path, options = {}) {
   }
 
   if (!res.ok) {
-    // Use error handler to display localized error messages
     if (window.errorHandler && data) {
       window.errorHandler.handleApiError(data);
     } else {
-      // Fallback to default error handling
       let message = data?.message || `HTTP ${res.status}: ${res.statusText}`;
       if (typeof window.i18next !== "undefined" && typeof window.i18next.t === "function") {
         message = window.i18next.t(message);
