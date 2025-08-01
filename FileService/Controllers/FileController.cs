@@ -11,6 +11,9 @@ using System.IdentityModel.Tokens.Jwt;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Localization;
 using System.Text.Json;
+using System.IO;
+using System.Linq;
+
 namespace FileService.Controllers
 {
     [ApiController]
@@ -67,7 +70,8 @@ namespace FileService.Controllers
                 try
                 {
                     using var stream = file.OpenReadStream();
-                    await _fileService.UploadFileAsync(file.FileName, stream, file.ContentType);
+                    var description = request.Description ?? "";
+                    await _fileService.UploadFileAsync(file.FileName, stream, file.ContentType, description);
 
                     _logger.LogInformation("File uploaded successfully: {FileName}", file.FileName);
                     results.Add(new { fileName = file.FileName, message = _localizer["FileUploadedSuccessfully"] });
@@ -93,16 +97,32 @@ namespace FileService.Controllers
                         _logger.LogWarning(emailEx, "Failed to send email notification for file: {FileName}. File was uploaded successfully.", file.FileName);
                     }
 
-                    // Send real-time notification
                     try
                     {
                         var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
                         if (!string.IsNullOrEmpty(userId))
                         {
+                            var userLanguageClaim = User.FindFirst("language");
+                            var userLanguage = userLanguageClaim?.Value ?? "en";
+                            
+                            var title = userLanguage switch
+                            {
+                                "vi" => "Tải tệp lên thành công",
+                                "ja" => "ファイルのアップロードが完了しました",
+                                _ => "File Uploaded Successfully"
+                            };
+                            
+                            var message = userLanguage switch
+                            {
+                                "vi" => $"Tệp '{file.FileName}' của bạn đã được tải lên thành công.",
+                                "ja" => $"ファイル '{file.FileName}' のアップロードが完了しました。",
+                                _ => $"Your file '{file.FileName}' has been uploaded successfully."
+                            };
+                            
                             await _notificationService.SendNotificationAsync(
                                 userId,
-                                "File Uploaded Successfully",
-                                $"Your file '{file.FileName}' has been uploaded successfully.",
+                                title,
+                                message,
                                 "success",
                                 JsonSerializer.Serialize(new { fileName = file.FileName, eventType = "upload" })
                             );
@@ -128,13 +148,19 @@ namespace FileService.Controllers
             try
             {
                 var files = await _fileService.ListFilesAsync();
-                if (!files.Any(f => f.FileName == fileName))
+                
+                var decodedFileName = Uri.UnescapeDataString(fileName);
+                
+                var matchingFile = files.FirstOrDefault(f => 
+                    string.Equals(f.FileName, decodedFileName, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(f.FileName, fileName, StringComparison.OrdinalIgnoreCase));
+                    
+                if (matchingFile == null)
                 {
                     return NotFound(new { message = string.Format(_localizer["FileNotFound"], fileName) });
                 }
-                var stream = await _fileService.DownloadFileAsync(fileName);
-
-                _logger.LogInformation("File downloaded successfully: {FileName}", fileName);
+                
+                var stream = await _fileService.DownloadFileAsync(matchingFile.FileName);
 
                 try
                 {
@@ -155,23 +181,38 @@ namespace FileService.Controllers
                         EventTime = DateTime.UtcNow,
                         Language = userLanguage
                     });
-                    _logger.LogInformation("Email notification sent for download: {FileName}", fileName);
                 }
                 catch (Exception emailEx)
                 {
                     _logger.LogWarning(emailEx, "Failed to send email notification for download: {FileName}. File was downloaded successfully.", fileName);
                 }
 
-                // Send real-time notification
                 try
                 {
                     var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
                     if (!string.IsNullOrEmpty(userId))
                     {
+                        var userLanguageClaim = User.FindFirst("language");
+                        var userLanguage = userLanguageClaim?.Value ?? "en";
+                        
+                        var title = userLanguage switch
+                        {
+                            "vi" => "Tải xuống tệp thành công",
+                            "ja" => "ファイルのダウンロードが完了しました",
+                            _ => "File Downloaded Successfully"
+                        };
+                        
+                        var message = userLanguage switch
+                        {
+                            "vi" => $"Tệp '{fileName}' của bạn đã được tải xuống thành công.",
+                            "ja" => $"ファイル '{fileName}' のダウンロードが完了しました。",
+                            _ => $"Your file '{fileName}' has been downloaded successfully."
+                        };
+                        
                         await _notificationService.SendNotificationAsync(
                             userId,
-                            "File Downloaded Successfully",
-                            $"Your file '{fileName}' has been downloaded successfully.",
+                            title,
+                            message,
                             "info",
                             JsonSerializer.Serialize(new { fileName = fileName, eventType = "download" })
                         );
@@ -182,13 +223,44 @@ namespace FileService.Controllers
                     _logger.LogWarning(notificationEx, "Failed to send real-time notification for download: {FileName}. File was downloaded successfully.", fileName);
                 }
 
-                return File(stream, "application/octet-stream", fileName);
+                var contentType = GetContentType(fileName);
+                return File(stream, contentType, fileName);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error downloading file: {FileName}", fileName);
                 return StatusCode(500, _localizer["ErrorDownloadingFile"]);
             }
+        }
+
+        private string GetContentType(string fileName)
+        {
+            var extension = Path.GetExtension(fileName).ToLowerInvariant();
+            return extension switch
+            {
+                ".pdf" => "application/pdf",
+                ".doc" => "application/msword",
+                ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                ".xls" => "application/vnd.ms-excel",
+                ".xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                ".ppt" => "application/vnd.ms-powerpoint",
+                ".pptx" => "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                ".txt" => "text/plain",
+                ".csv" => "text/csv",
+                ".json" => "application/json",
+                ".xml" => "application/xml",
+                ".html" => "text/html",
+                ".css" => "text/css",
+                ".js" => "application/javascript",
+                ".jpg" or ".jpeg" => "image/jpeg",
+                ".png" => "image/png",
+                ".gif" => "image/gif",
+                ".svg" => "image/svg+xml",
+                ".zip" => "application/zip",
+                ".rar" => "application/vnd.rar",
+                ".7z" => "application/x-7z-compressed",
+                _ => "application/octet-stream"
+            };
         }
 
         [HttpGet("list")]
@@ -206,16 +278,26 @@ namespace FileService.Controllers
             }
         }
 
+        [HttpGet("get-file-info/{fileName}")]
+        public async Task<IActionResult> GetFileInfo(string fileName)
+        {
+            try
+            {
+                var fileInfo = await _fileService.GetFileInfoAsync(fileName);
+                return Ok(fileInfo);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting file info: {FileName}", fileName);
+                return StatusCode(500, _localizer["ErrorGettingFileInfo"]);
+            }
+        }
+
         [HttpDelete("delete/{fileName}")]
         public async Task<IActionResult> Delete(string fileName)
         {
             try
             {
-                var files = await _fileService.ListFilesAsync();
-                if (!files.Any(f => f.FileName == fileName))
-                {
-                    return NotFound(new { message = string.Format(_localizer["FileNotFound"], fileName) });
-                }
                 await _fileService.DeleteFileAsync(fileName);
 
                 try
@@ -237,23 +319,38 @@ namespace FileService.Controllers
                         EventTime = DateTime.UtcNow,
                         Language = userLanguage
                     });
-                    _logger.LogInformation("Email notification sent for delete: {FileName}", fileName);
                 }
                 catch (Exception emailEx)
                 {
                     _logger.LogWarning(emailEx, "Failed to send email notification for delete: {FileName}. File was deleted successfully.", fileName);
                 }
 
-                // Send real-time notification
                 try
                 {
                     var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
                     if (!string.IsNullOrEmpty(userId))
                     {
+                        var userLanguageClaim = User.FindFirst("language");
+                        var userLanguage = userLanguageClaim?.Value ?? "en";
+                        
+                        var title = userLanguage switch
+                        {
+                            "vi" => "Xóa tệp thành công",
+                            "ja" => "ファイルの削除が完了しました",
+                            _ => "File Deleted Successfully"
+                        };
+                        
+                        var message = userLanguage switch
+                        {
+                            "vi" => $"Tệp '{fileName}' của bạn đã được xóa thành công.",
+                            "ja" => $"ファイル '{fileName}' の削除が完了しました。",
+                            _ => $"Your file '{fileName}' has been deleted successfully."
+                        };
+                        
                         await _notificationService.SendNotificationAsync(
                             userId,
-                            "File Deleted Successfully",
-                            $"Your file '{fileName}' has been deleted successfully.",
+                            title,
+                            message,
                             "warning",
                             JsonSerializer.Serialize(new { fileName = fileName, eventType = "delete" })
                         );
@@ -270,21 +367,6 @@ namespace FileService.Controllers
             {
                 _logger.LogError(ex, "Error deleting file: {FileName}", fileName);
                 return StatusCode(500, _localizer["ErrorDeletingFile"]);
-            }
-        }
-
-        [HttpGet("get-file-info/{fileName}")]
-        public async Task<IActionResult> GetFileInfo(string fileName)
-        {
-            try
-            {
-                var fileInfo = await _fileService.GetFileInfoAsync(fileName);
-                return Ok(fileInfo);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting file info: {FileName}", fileName);
-                return StatusCode(500, _localizer["ErrorGettingFileInfo"]);
             }
         }
     }

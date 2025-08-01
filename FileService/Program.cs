@@ -149,7 +149,7 @@ builder.Services.Configure<RequestLocalizationOptions>(options =>
 
 // Configure MinIO
 builder.Services.Configure<MinioOptions>(builder.Configuration.GetSection("Minio"));
-builder.Services.AddScoped<IFileService, MinioFileService>();
+builder.Services.AddSingleton<IFileService, MinioFileService>();
 
 // Configure RabbitMQ
 // builder.Services.Configure<RabbitMQOptions>(builder.Configuration.GetSection("RabbitMQ"));

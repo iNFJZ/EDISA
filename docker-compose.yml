@@ -11,8 +11,6 @@ services:
       POSTGRES_PASSWORD: 123456
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./init-notification-db.sql:/tmp/init-notification-db.sql
-      - ./init-auth-db.sql:/tmp/init-auth-db.sql
     networks:
       - microservice-network
 

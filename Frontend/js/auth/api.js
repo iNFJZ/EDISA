@@ -93,7 +93,5 @@ function showToastrMessage(msg, type = "success") {
   
   if (typeof toastr !== "undefined") {
     toastr[type](msg);
-  } else {
-    console.log(`${type.toUpperCase()}: ${msg}`);
   }
 } 

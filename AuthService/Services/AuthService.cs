@@ -110,34 +110,32 @@ namespace AuthService.Services
                     throw new UserAlreadyExistsException(sanitizedEmail);
             }
 
-            string finalUsername = sanitizedUsername;
-            int retry = 0;
-            const int maxRetry = 100;
-            Exception lastException = null;
-            do
+            var existingUsername = await _repo.GetByUsernameAsync(sanitizedUsername);
+            if (existingUsername != null)
             {
-                try
+                if (!acceptSuggestedUsername)
                 {
-                    if (retry > 0)
-                    {
-                        finalUsername = $"{sanitizedUsername}{retry}";
-                    }
-                    if (retry > 0 && !acceptSuggestedUsername)
-                    {
-                        return (null, sanitizedUsername, finalUsername, "USERNAME_ALREADY_EXISTS", $"usernameSuggestionMessage");
-                    }
-                    var user = new User
-                    {
-                        Username = finalUsername,
-                        FullName = sanitizedFullName,
-                        Email = sanitizedEmail,
-                        PhoneNumber = dto.PhoneNumber?.Trim(),
-                        PasswordHash = _passwordService.HashPassword(dto.Password),
-                        LoginProvider = "Local",
-                        Status = UserStatus.Inactive,
-                        CreatedAt = DateTime.UtcNow
-                    };
-                    await _repo.AddAsync(user);
+                    var suggestedUsername = await GenerateUniqueUsernameAsync(sanitizedUsername);
+                    return (null, sanitizedUsername, suggestedUsername, "USERNAME_ALREADY_EXISTS", "usernameSuggestionMessage");
+                }
+                else
+                {
+                    sanitizedUsername = await GenerateUniqueUsernameAsync(sanitizedUsername);
+                }
+            }
+
+            var user = new User
+            {
+                Username = sanitizedUsername,
+                FullName = sanitizedFullName,
+                Email = sanitizedEmail,
+                PhoneNumber = dto.PhoneNumber?.Trim(),
+                PasswordHash = _passwordService.HashPassword(dto.Password),
+                LoginProvider = "Local",
+                Status = UserStatus.Inactive,
+                CreatedAt = DateTime.UtcNow
+            };
+            await _repo.AddAsync(user);
                     var token = _jwtService.GenerateToken(user, dto.Language ?? "en");
                     var tokenExpiry = _jwtService.GetTokenExpirationTimeSpan(token);
                     await _sessionService.StoreActiveTokenAsync(token, user.Id, tokenExpiry);
@@ -163,45 +161,54 @@ namespace AuthService.Services
                         VerifyLink = verifyLink,
                         Language = language
                     });
-                    return (token, finalUsername, null, null, null);
-                }
-                catch (AuthException ex) when (ex.ErrorCode == "USERNAME_ALREADY_EXISTS")
-                {
-                    lastException = ex;
-                    retry++;
-                }
-            } while (retry < maxRetry);
-            throw lastException ?? new AuthException("USERNAME_ALREADY_EXISTS", $"Username '{finalUsername}' already exists");
+                    return (token, sanitizedUsername, null, null, null);
         }
 
         private async Task<string> GenerateUniqueUsernameAsync(string baseUsername)
         {
-            var username = baseUsername;
-            var counter = 1;
-            const int maxAttempts = 100;
-            while (counter <= maxAttempts)
+            var usernames = await _repo.GetUsernamesByPrefixAsync(baseUsername);
+            var maxNumber = 0;
+            var hasExactMatch = false;
+            var regex = new System.Text.RegularExpressions.Regex($"^{System.Text.RegularExpressions.Regex.Escape(baseUsername)}(\\d+)$");
+            
+            foreach (var name in usernames)
             {
-                var existingUser = await _repo.GetByUsernameAsync(username);
-                if (existingUser == null)
+                if (name.Equals(baseUsername, StringComparison.OrdinalIgnoreCase))
                 {
-                    return username;
+                    hasExactMatch = true;
+                }
+                else
+                {
+                    var match = regex.Match(name);
+                    if (match.Success && int.TryParse(match.Groups[1].Value, out int num))
+                    {
+                        if (num > maxNumber) maxNumber = num;
+                    }
+                }
+            }
+            
+            if (hasExactMatch)
+            {
+                var usedNumbers = new HashSet<int>();
+                foreach (var name in usernames)
+                {
+                    var match = regex.Match(name);
+                    if (match.Success && int.TryParse(match.Groups[1].Value, out int num))
+                    {
+                        usedNumbers.Add(num);
+                    }
                 }
                 
-                username = $"{baseUsername}{counter}";
-                counter++;
+                int nextNumber = 1;
+                while (usedNumbers.Contains(nextNumber))
+                {
+                    nextNumber++;
+                }
+                
+                return $"{baseUsername}{nextNumber}";
             }
             
-            var timestamp = DateTime.UtcNow.ToString("yyyyMMddHHmmss");
-            username = $"{baseUsername}{timestamp}";
-            
-            var finalCheck = await _repo.GetByUsernameAsync(username);
-            if (finalCheck == null)
-            {
-                return username;
-            }
-            
-            var guid = Guid.NewGuid().ToString("N").Substring(0, 8);
-            return $"{baseUsername}{guid}";
+            return baseUsername;
         }
 
         private string GenerateEmailVerifyToken(Guid userId, string email)

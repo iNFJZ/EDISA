@@ -144,15 +144,26 @@ class AdminAuth {
     $(".user-avatar").attr("src", "").hide();
     $(".user-name").text("");
     $(".user-role").text("");
-    function showFallbackAvatar(letter) {
-      const color = "#" + (((1 << 24) * Math.random()) | 0).toString(16);
+    function showFallbackAvatar(letter, seed = "default") {
+      let hash = 0;
+      for (let i = 0; i < seed.length; i++) {
+        const char = seed.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash;
+      }
+      
+      const hue = Math.abs(hash) % 360;
+      const saturation = 70 + (Math.abs(hash) % 20);
+      const lightness = 45 + (Math.abs(hash) % 15);
+      
+      const color = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
       const svg = `<svg width='40' height='40' xmlns='http://www.w3.org/2000/svg'><circle cx='20' cy='20' r='20' fill='${color}'/><text x='50%' y='50%' text-anchor='middle' dy='.35em' font-family='Arial' font-size='20' fill='#fff'>${letter}</text></svg>`;
       const dataUrl =
         "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svg)));
       $(".user-avatar").attr("src", dataUrl).show();
     }
     if (!userInfo) {
-      showFallbackAvatar("A");
+      showFallbackAvatar("A", "default");
       return;
     }
     let fallbackLetter = (
@@ -163,7 +174,8 @@ class AdminAuth {
     )
       .charAt(0)
       .toUpperCase();
-    showFallbackAvatar(fallbackLetter);
+    const seed = userInfo.email || userInfo.username || userInfo.fullName || "default";
+    showFallbackAvatar(fallbackLetter, seed);
     $(".user-name").text(userInfo.fullName || userInfo.email || "Admin");
     $(".user-role").text("Admin");
     try {
@@ -180,7 +192,7 @@ class AdminAuth {
           if (user.profilePicture && user.profilePicture.trim() !== "") {
             $(".user-avatar").attr("src", user.profilePicture).show();
           } else {
-            showFallbackAvatar(fallbackLetter);
+            showFallbackAvatar(fallbackLetter, seed);
           }
           if (user.fullName && user.fullName.trim() !== "") {
             $(".user-name").text(user.fullName);
@@ -188,13 +200,13 @@ class AdminAuth {
             $(".user-name").text(user.email);
           }
         } else {
-          showFallbackAvatar(fallbackLetter);
+          showFallbackAvatar(fallbackLetter, seed);
         }
       } else {
-        showFallbackAvatar(fallbackLetter);
+        showFallbackAvatar(fallbackLetter, seed);
       }
     } catch (error) {
-      showFallbackAvatar(fallbackLetter);
+      showFallbackAvatar(fallbackLetter, seed);
     }
   }
 }
@@ -460,10 +472,23 @@ function getUserTableColumnDefs(isDeactive) {
       targets: 0, // Avatar
       render: function (data, type, full) {
         if (full.profilePicture && full.profilePicture.trim() !== "") {
-          return `<img src="${full.profilePicture}" alt="avatar" class="rounded-circle" style="width:36px;height:36px;object-fit:cover;">`;
+          return `<img src="${full.profilePicture}" alt="User Avatar" class="rounded-circle" style="width:36px;height:36px;object-fit:cover;">`;
         } else {
           const letter = (full.username || "").charAt(0).toUpperCase();
-          const color = "#" + (((1 << 24) * Math.random()) | 0).toString(16);
+          const seed = full.email || full.username || full.fullName || "default";
+          
+          let hash = 0;
+          for (let i = 0; i < seed.length; i++) {
+            const char = seed.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash;
+          }
+          
+          const hue = Math.abs(hash) % 360;
+          const saturation = 70 + (Math.abs(hash) % 20);
+          const lightness = 45 + (Math.abs(hash) % 15);
+          
+          const color = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
           return `<div class="avatar-initial rounded-circle" style="width:36px;height:36px;background:${color};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:18px;">${letter}</div>`;
         }
       },
@@ -998,6 +1023,44 @@ function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
+function getCurrentLanguage() {
+  return window.i18next?.language || localStorage.getItem("i18nextLng") || "en";
+}
+
+function showUsernameSuggestionModal(original, suggested, onAccept, onReject) {
+  const msg = window.i18next.t("usernameSuggestionMessage").replace("{original}", original).replace("{suggested}", suggested);
+  const modalHtml = `
+    <div class="modal fade" id="usernameSuggestionModal" tabindex="-1" aria-labelledby="usernameSuggestionModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="usernameSuggestionModalLabel">${window.i18next.t("usernameSuggestionTitle")}</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">${msg}</div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-primary" id="acceptSuggestedUsernameBtn">${window.i18next.t("yes")}</button>
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">${window.i18next.t("no")}</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  $("body").append(modalHtml);
+  const modal = new bootstrap.Modal(document.getElementById("usernameSuggestionModal"));
+  modal.show();
+  $("#acceptSuggestedUsernameBtn").on("click", function () {
+    modal.hide();
+    setTimeout(() => {
+      $("#usernameSuggestionModal").remove();
+      onAccept();
+    }, 150);
+  });
+  $("#usernameSuggestionModal").on("hidden.bs.modal", function () {
+    $("#usernameSuggestionModal").remove();
+    if (onReject) onReject();
+  });
+}
+
 function handleAddUser() {
   const form = document.getElementById("addNewUserForm");
   if (!form) return;
@@ -1035,7 +1098,7 @@ function handleAddUser() {
   if (phone) data.phoneNumber = phone;
   const token = localStorage.getItem("authToken");
 
-  fetch("/api/Auth/register", {
+    fetch("/api/Auth/register", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -1075,49 +1138,6 @@ function handleAddUser() {
         } else {
           setTimeout(() => window.location.reload(), 1000);
         }
-      } else if (
-        (res.errorCode &&
-          res.errorCode.toUpperCase() === "EMAIL_ALREADY_EXISTS") ||
-        (res.errorCode &&
-          res.errorCode.toUpperCase() === "USER_ALREADY_EXISTS") ||
-        (res.message &&
-          res.message
-            .replace(/\s+/g, "")
-            .toLowerCase()
-            .includes("emailalread")) ||
-        (res.message &&
-          res.message
-            .replace(/\s+/g, "")
-            .toLowerCase()
-            .includes("emailexist")) ||
-        (res.message &&
-          res.message.toLowerCase().includes("email") &&
-          res.message.toLowerCase().includes("exist")) ||
-        (res.message && res.message.toLowerCase().includes("already exists")) ||
-        (res.message && res.message.toLowerCase().includes("đã tồn tại"))
-      ) {
-        safeToastrMessage("clear");
-        safeToastrMessage(
-          "error",
-          window.i18next.t("userAlreadyExists").replace("{email}", email),
-        );
-      } else if (
-        (res.errorCode &&
-          res.errorCode.toUpperCase() === "USERNAME_ALREADY_EXISTS") ||
-        (res.message &&
-          res.message.toLowerCase().includes("username") &&
-          res.message.toLowerCase().includes("exist")) ||
-        (res.message &&
-          res.message.toLowerCase().includes("tên đăng nhập") &&
-          res.message.toLowerCase().includes("tồn tại"))
-      ) {
-        safeToastrMessage("clear");
-        safeToastrMessage(
-          "error",
-          window.i18next
-            .t("usernameAlreadyExists")
-            .replace("{username}", username),
-        );
       } else {
         safeToastrMessage("clear");
         safeToastrMessage("error", res.message || window.i18next.t("addUserFailed"));
@@ -1125,22 +1145,75 @@ function handleAddUser() {
     })
     .catch((error) => {
       console.error("Add user error:", error);
-      if (error.status === 400 || error.status === 409) {
-        if (
-          error.errorCode === "EMAIL_ALREADY_EXISTS" ||
-          error.errorCode === "USER_ALREADY_EXISTS"
-        ) {
+      if (error.status === 400) {
+        if (error.message && error.message.toLowerCase().includes("email") && error.message.toLowerCase().includes("already exists")) {
           safeToastrMessage(
             "error",
             window.i18next.t("userAlreadyExists").replace("{email}", email),
           );
-        } else if (error.errorCode === "USERNAME_ALREADY_EXISTS") {
-          safeToastrMessage(
-            "error",
-            window.i18next
-              .t("usernameAlreadyExists")
-              .replace("{username}", username),
-          );
+        } else if (error.errorCode === "USERNAME_ALREADY_EXISTS" && error.suggestedUsername) {
+          showUsernameSuggestionModal(username, error.suggestedUsername, async () => {
+            const updatedData = {
+              username: error.suggestedUsername,
+              fullName: fullName,
+              email: email,
+              phoneNumber: phoneNumber || null,
+              password: password,
+              language: getCurrentLanguage(),
+              acceptSuggestedUsername: true
+            };
+            
+            try {
+              const res = await fetch("/api/Auth/register", {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify(updatedData),
+              });
+                if (!res.ok) {
+                const errorData = await res.json();
+                throw { status: res.status, ...errorData };
+              }
+              
+              const result = await res.json();
+              if (result && Object.keys(result).length > 0) {
+                form.reset();
+                $("#offcanvasAddUser").offcanvas("hide");
+                
+                const actualUsername = result.username || error.suggestedUsername;
+                const successMessage = window.i18next
+                  .t("userAddedSuccessfullyWithNewUsername")
+                  .replace("{old}", username)
+                  .replace("{new}", actualUsername);
+                
+                setTimeout(() => {
+                  if (typeof toastr !== "undefined") {
+                    toastr.success(successMessage);
+                  } else if (typeof window.safeToastr === "function") {
+                    window.safeToastr("success", successMessage);
+                  } else {
+                    alert(successMessage);
+                  }
+                }, 500);
+                
+                setTimeout(() => {
+                  const dt_user_table = $(".datatables-users");
+                  if (dt_user_table.length && $.fn.DataTable.isDataTable(dt_user_table)) {
+                    dt_user_table.DataTable().ajax.reload(null, false);
+                  } else {
+                    window.location.reload();
+                  }
+                }, 2000);
+              }
+            } catch (retryError) {
+              console.error("Retry add user error:", retryError);
+              safeToastrMessage("error", window.i18next.t("addUserFailed"));
+            }
+          }, () => {
+            safeToastrMessage("info", window.i18next.t("userCancelledUsernameSuggestion"));
+          });
         } else if (error.message) {
           safeToastrMessage("error", error.message);
         } else {
@@ -2120,15 +2193,30 @@ function openViewUserModal(userId) {
       );
       $(".user-provider").text(user.loginProvider || window.i18next.t("local"));
       $(".user-bio").text(user.bio || window.i18next.t("noBioAvailable"));
+      
       const $avatar = $("#view-user-avatar");
       const $fallback = $("#avatar-fallback");
+      
       if (user.profilePicture && user.profilePicture.trim() !== "") {
         $avatar.attr("src", user.profilePicture).show();
         $fallback.hide();
       } else {
         $avatar.hide();
         const letter = (user.email || "").charAt(0).toUpperCase();
-        const color = "#" + (((1 << 24) * Math.random()) | 0).toString(16);
+        const seed = user.email || user.username || user.fullName || "default";
+        
+        let hash = 0;
+        for (let i = 0; i < seed.length; i++) {
+          const char = seed.charCodeAt(i);
+          hash = ((hash << 5) - hash) + char;
+          hash = hash & hash;
+        }
+        
+        const hue = Math.abs(hash) % 360;
+        const saturation = 70 + (Math.abs(hash) % 20);
+        const lightness = 45 + (Math.abs(hash) % 15);
+        
+        const color = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
         $fallback
           .text(letter)
           .css({ background: color, color: "#fff", display: "flex" });
@@ -2485,14 +2573,31 @@ window.openRestoreUserModal = function (userId) {
 
 function generateLetterAvatarFromUser(user) {
   let letter = "U";
+  let seed = "default";
+  
   if (user && user.email && user.email.trim() !== "") {
     letter = user.email.trim().charAt(0).toUpperCase();
+    seed = user.email.trim();
   } else if (user && user.username && user.username.trim() !== "") {
     letter = user.username.trim().charAt(0).toUpperCase();
+    seed = user.username.trim();
   } else if (user && user.fullName && user.fullName.trim() !== "") {
     letter = user.fullName.trim().charAt(0).toUpperCase();
+    seed = user.fullName.trim();
   }
-  const color = "#" + (((1 << 24) * Math.random()) | 0).toString(16);
+  
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    const char = seed.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  
+  const hue = Math.abs(hash) % 360;
+  const saturation = 70 + (Math.abs(hash) % 20);
+  const lightness = 45 + (Math.abs(hash) % 15);
+  
+  const color = `hsl(${hue}, ${saturation}%, ${lightness}%)`; 
   const svg = `<svg width='40' height='40' xmlns='http://www.w3.org/2000/svg'><circle cx='20' cy='20' r='20' fill='${color}'/><text x='50%' y='50%' text-anchor='middle' dy='.35em' font-family='Arial' font-size='20' fill='#fff'>${letter}</text></svg>`;
   return "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svg)));
 }
@@ -2505,10 +2610,10 @@ if (typeof window.getUserTableColumnDefs === "function") {
       if (def.targets === 0) {
         def.render = function (data, type, full) {
           if (full.profilePicture && full.profilePicture.trim() !== "") {
-            return `<img src="${full.profilePicture}" alt="avatar" class="rounded-circle" style="width:36px;height:36px;object-fit:cover;">`;
+            return `<img src="${full.profilePicture}" alt="User Avatar" class="rounded-circle" style="width:36px;height:36px;object-fit:cover;">`;
           } else {
             const svg = generateLetterAvatarFromUser(full);
-            return `<img src="${svg}" alt="avatar" class="rounded-circle" style="width:36px;height:36px;object-fit:cover;">`;
+            return `<img src="${svg}" alt="User Avatar" class="rounded-circle" style="width:36px;height:36px;object-fit:cover;">`;
           }
         };
       }
@@ -2546,7 +2651,20 @@ async function loadUserProfile() {
         const letter = (user.fullName || user.username || "U")
           .charAt(0)
           .toUpperCase();
-        const color = "#" + (((1 << 24) * Math.random()) | 0).toString(16);
+        const seed = user.email || user.username || user.fullName || "default";
+        
+        let hash = 0;
+        for (let i = 0; i < seed.length; i++) {
+          const char = seed.charCodeAt(i);
+          hash = ((hash << 5) - hash) + char;
+          hash = hash & hash;
+        }
+        
+        const hue = Math.abs(hash) % 360;
+        const saturation = 70 + (Math.abs(hash) % 20);
+        const lightness = 45 + (Math.abs(hash) % 15);
+        
+        const color = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
         const svg = `<svg width='100' height='100' xmlns='http://www.w3.org/2000/svg'><circle cx='50' cy='50' r='50' fill='${color}'/><text x='50%' y='50%' text-anchor='middle' dy='.35em' font-family='Arial' font-size='40' fill='#fff'>${letter}</text></svg>`;
         const dataUrl =
           "data:image/svg+xml;base64," +
@@ -2784,10 +2902,6 @@ document.addEventListener("DOMContentLoaded", function () {
           safeToastrMessage("error", window.i18next.t("authenticationRequired"));
           return;
         }
-        let lang =
-          (window.i18next && window.i18next.language) ||
-          localStorage.getItem("i18nextLng") ||
-          "vi";
         const res = await fetch(
           "/api/Auth/change-password",
           {
@@ -2800,7 +2914,7 @@ document.addEventListener("DOMContentLoaded", function () {
               currentPassword: oldPwd,
               newPassword: newPwd,
               confirmPassword: confirmPwd,
-              language: lang,
+              language: getCurrentLanguage(),
             }),
           },
         );

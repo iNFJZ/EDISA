@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using UserService.DTOs;
 using UserService.Services;
 using UserService.Models;
+using BCrypt.Net;
 
 namespace UserService.Controllers;
 
@@ -16,15 +17,6 @@ public class UserController : ControllerBase
     public UserController(IUserService userService)
     {
         _userService = userService;
-    }
-
-    /// <summary>
-    /// Create a new user
-    /// </summary>
-    [HttpPost]
-    public async Task<IActionResult> CreateUser([FromBody] CreateUserDto dto)
-    {
-        return BadRequest(new { success = false, message = "User creation is handled by AuthService. Please use /api/auth/register endpoint." });
     }
 
     /// <summary>
@@ -99,6 +91,8 @@ public class UserController : ControllerBase
             return StatusCode(500, new { success = false, message = "An error occurred while fetching user", error = ex.Message });
         }
     }
+
+
 
     /// <summary>
     /// Get user by email

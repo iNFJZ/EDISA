@@ -305,14 +305,7 @@ public class UserService : IUserService
         return result;
     }
 
-    public async Task<UserDto> CreateUserAsync(User user)
-    {
-        var createdUser = await _userRepository.AddAsync(user);
-        
-        await _userCacheService.SetUserAsync(createdUser, TimeSpan.FromMinutes(30));
-        
-        return _mapper.Map<UserDto>(createdUser);
-    }
+
 
     public async Task<object> GetStatisticsAsync()
     {
@@ -342,4 +335,6 @@ public class UserService : IUserService
             RecentUsers = recentUsers
         };
     }
+
+
 } 

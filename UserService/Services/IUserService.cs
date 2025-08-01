@@ -14,5 +14,4 @@ public interface IUserService
     Task<bool> DeleteUserAsync(Guid userId, string language = "en");
     Task<bool> RestoreUserAsync(Guid id, string language = "en");
     Task<object> GetStatisticsAsync();
-    Task<UserDto> CreateUserAsync(User user);
 } 

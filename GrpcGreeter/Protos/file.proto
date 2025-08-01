@@ -20,6 +20,7 @@ message UploadFileRequest {
   string contentType = 2;
   bytes fileData = 3;
   string userId = 4;
+  string description = 5;
 }
 
 message UploadFileResponse {
@@ -72,6 +73,7 @@ message FileInfo {
   string contentType = 4;
   string uploadedBy = 5;
   string uploadedAt = 6;
+  string description = 7;
 }
 
 message ListFilesRequest {

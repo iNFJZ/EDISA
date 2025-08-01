@@ -545,12 +545,9 @@ class NotificationClient {
                 this.unreadCount = count || 0;
                 this.updateNotificationBadge();
             } else if (response.status === 401) {
-                console.log('Unauthorized access to unread count');
             } else {
-                console.error('Failed to load unread count:', response.status);
             }
         } catch (error) {
-            console.error('Error loading unread count:', error);
         }
     }
 

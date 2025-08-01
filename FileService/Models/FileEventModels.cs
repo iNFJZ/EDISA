@@ -29,5 +29,6 @@ namespace FileService.Models
         public string ContentType { get; set; } = string.Empty;
         public string UploadedBy { get; set; } = string.Empty;
         public string UploadedAt { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
     }
 } 
