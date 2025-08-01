@@ -22,4 +22,9 @@ namespace AuthService.Services
         Task<bool> DisableTwoFactorAsync(Guid userId, string code, string? language = null);
         Task<User?> GetUserByIdAsync(Guid userId);
     }
+
+    public interface INotificationService
+    {
+        Task SendNotificationAsync(string userId, string title, string message, string type = "info", string? data = null);
+    }
 }

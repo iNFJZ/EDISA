@@ -10,6 +10,7 @@ namespace AuthService.Repositories
         Task<User?> GetByGoogleIdAsync(string googleId);
         Task<User?> GetByGoogleIdIncludeDeletedAsync(string googleId);
         Task<User?> GetByUsernameAsync(string username);
+        Task<List<string>> GetUsernamesByPrefixAsync(string prefix);
         Task AddAsync(User user);
         Task UpdateAsync(User user);
         Task DeleteAsync(Guid id);

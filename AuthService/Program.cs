@@ -57,6 +57,7 @@ builder.Services.AddScoped<IEmailMessageService, EmailMessageService>();
 
 builder.Services.AddHttpClient<IGoogleAuthService, GoogleAuthService>();
 builder.Services.AddHttpClient<IHunterEmailVerifierService, HunterEmailVerifierService>();
+builder.Services.AddHttpClient<INotificationService, NotificationService>();
 
 builder.Services.AddScoped<IGoogleAuthService, GoogleAuthService>();
 
@@ -69,8 +70,8 @@ builder.Services.AddAuthentication("Bearer")
             ValidateAudience = true,
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
-            ValidIssuer = builder.Configuration["JwtSettings:Issuer"] ?? "http://localhost:5001",
-            ValidAudience = builder.Configuration["JwtSettings:Audience"] ?? "http://localhost:5001",
+            ValidIssuer = builder.Configuration["JwtSettings:Issuer"] ?? "EDISA",
+            ValidAudience = builder.Configuration["JwtSettings:Audience"] ?? "EDISA",
             IssuerSigningKey = new SymmetricSecurityKey(
                 Encoding.UTF8.GetBytes(builder.Configuration["JwtSettings:Key"]!))
         };
@@ -149,7 +150,8 @@ builder.Services.AddScoped<IAuthService, AuthService.Services.AuthService>(sp =>
         sp.GetRequiredService<ILogger<AuthService.Services.AuthService>>(),
         sp.GetRequiredService<IEmailMessageService>(),
         sp.GetRequiredService<IConfiguration>(),
-        sp.GetRequiredService<IHunterEmailVerifierService>()
+        sp.GetRequiredService<IHunterEmailVerifierService>(),
+        sp.GetRequiredService<INotificationService>()
     )
 );
 

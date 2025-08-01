@@ -20,7 +20,8 @@ namespace FileService.Services
         public override async Task<UploadFileResponse> UploadFile(UploadFileRequest request, ServerCallContext context)
         {
             using var ms = new System.IO.MemoryStream(request.FileData.ToByteArray());
-            await _fileService.UploadFileAsync(request.FileName, ms, request.ContentType);
+            var description = request.Description ?? "";
+            await _fileService.UploadFileAsync(request.FileName, ms, request.ContentType, description);
             return new UploadFileResponse { Success = true, FileName = request.FileName, Message = _localizer["FileUploadedSuccessfully"] };
         }
 
@@ -58,6 +59,7 @@ namespace FileService.Services
                     ContentType = fileInfo.ContentType ?? string.Empty,
                     UploadedBy = fileInfo.UploadedBy ?? string.Empty,
                     UploadedAt = fileInfo.UploadedAt ?? string.Empty,
+                    Description = fileInfo.Description ?? string.Empty,
                 },
                 Message = _localizer["FileInfoFetchedSuccessfully"]
             };
@@ -75,6 +77,7 @@ namespace FileService.Services
                     ContentType = f.ContentType ?? string.Empty,
                     UploadedBy = f.UploadedBy ?? string.Empty,
                     UploadedAt = f.UploadedAt ?? string.Empty,
+                    Description = f.Description ?? string.Empty,
                 }) },
                 TotalCount = files.Count,
                 CurrentPage = 1,

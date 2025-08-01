@@ -74,7 +74,7 @@ $(document).ready(function () {
     formData.append('description', $desc.val() || '');
     try {
       const token = localStorage.getItem("authToken");
-      const res = await fetch('http://localhost:5050/api/File/upload', {
+              const res = await fetch('/api/File/upload', {
         method: 'POST',
         body: formData,
         headers: {

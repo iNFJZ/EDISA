@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using UserService.DTOs;
 using UserService.Services;
 using UserService.Models;
+using BCrypt.Net;
 
 namespace UserService.Controllers;
 
@@ -16,15 +17,6 @@ public class UserController : ControllerBase
     public UserController(IUserService userService)
     {
         _userService = userService;
-    }
-
-    /// <summary>
-    /// Create a new user
-    /// </summary>
-    [HttpPost]
-    public async Task<IActionResult> CreateUser([FromBody] CreateUserDto dto)
-    {
-        return BadRequest(new { success = false, message = "User creation is handled by AuthService. Please use /api/auth/register endpoint." });
     }
 
     /// <summary>
@@ -100,6 +92,8 @@ public class UserController : ControllerBase
         }
     }
 
+
+
     /// <summary>
     /// Get user by email
     /// </summary>
@@ -161,7 +155,10 @@ public class UserController : ControllerBase
 
         try
         {
-            var result = await _userService.UpdateUserAsync(id, dto);
+            var userLanguageClaim = User.FindFirst("language");
+            var userLanguage = userLanguageClaim?.Value ?? "en";
+            
+            var result = await _userService.UpdateUserAsync(id, dto, userLanguage);
             if (result)
             {
                 return Ok(new { success = true, message = "User updated successfully" });

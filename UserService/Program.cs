@@ -10,6 +10,8 @@ using System.Text;
 using Microsoft.OpenApi.Models;
 using StackExchange.Redis;
 using Microsoft.Extensions.Logging;
+using Shared.Services;
+using Shared.LanguageService;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -54,6 +56,11 @@ builder.Services.AddScoped<IUserCacheService, UserCacheService>();
 builder.Services.AddScoped<ISessionService, SessionService>();
 builder.Services.AddScoped<IEmailMessageService, EmailMessageService>();
 
+builder.Services.AddHttpClient();
+builder.Services.AddScoped<INotificationHelper, NotificationHelper>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddScoped<ILanguageService, LanguageServiceImplementation>();
+
 builder.Services.AddAuthentication("Bearer")
     .AddJwtBearer("Bearer", options =>
     {
@@ -63,8 +70,8 @@ builder.Services.AddAuthentication("Bearer")
             ValidateAudience = true,
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
-            ValidIssuer = builder.Configuration["JwtSettings:Issuer"] ?? "http://localhost:5001",
-            ValidAudience = builder.Configuration["JwtSettings:Audience"] ?? "http://localhost:5001",
+            ValidIssuer = builder.Configuration["JwtSettings:Issuer"] ?? "EDISA",
+            ValidAudience = builder.Configuration["JwtSettings:Audience"] ?? "EDISA",
             IssuerSigningKey = new SymmetricSecurityKey(
                 Encoding.UTF8.GetBytes(builder.Configuration["JwtSettings:Key"]!))
         };

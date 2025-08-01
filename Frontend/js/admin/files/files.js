@@ -14,7 +14,7 @@ function formatFileSize(size) {
 async function fetchAndRenderFiles() {
   try {
     const token = localStorage.getItem("authToken");
-    const res = await fetch("http://localhost:5050/api/File/list", {
+            const res = await fetch("/api/File/list", {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
     if (!res.ok) throw new Error("Failed to fetch file list");
@@ -47,7 +47,7 @@ function openDeleteFileModal(file) {
     try {
       const token = localStorage.getItem("authToken");
       const res = await fetch(
-        `http://localhost:5050/api/File/delete/${encodeURIComponent(file.fileName)}`,
+        `/api/File/delete/${encodeURIComponent(file.fileName)}`,
         {
           method: "DELETE",
           headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -132,14 +132,36 @@ window.showFileDetailModal = function (file) {
   }
 
   const downloadBtn = document.querySelector(".btn-download-file");
-  downloadBtn.onclick = function () {
-    if (!file.fileUrl || !file.fileName) return;
-    const link = document.createElement("a");
-    link.href = file.fileUrl;
-    link.download = file.fileName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  downloadBtn.onclick = async function () {
+    if (!file.fileName) return;
+    
+    try {
+      const token = localStorage.getItem("authToken");
+      const response = await fetch(`/api/File/download/${encodeURIComponent(file.fileName)}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error('Download failed');
+      }
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = file.fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      showNotification("success", i18next.t("fileDownloadedSuccessfully"));
+    } catch (error) {
+      showNotification("error", i18next.t("downloadFailed"));
+    }
   };
 
   const deleteBtn = document.querySelector("#viewFileModal .btn-delete-file");

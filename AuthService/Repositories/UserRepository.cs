@@ -135,6 +135,14 @@ namespace AuthService.Repositories
             }
         }
 
+        public async Task<List<string>> GetUsernamesByPrefixAsync(string prefix)
+        {
+            return await _context.Users
+                .Where(u => u.Username.ToLower().StartsWith(prefix.ToLower()) && u.DeletedAt == null)
+                .Select(u => u.Username)
+                .ToListAsync();
+        }
+
 
     }
 }

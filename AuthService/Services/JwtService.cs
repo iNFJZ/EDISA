@@ -33,8 +33,8 @@ namespace AuthService.Services
             var expirationTime = DateTime.UtcNow.AddMinutes(expiresInMinutes);
 
             var token = new JwtSecurityToken(
-                issuer: _config["JwtSettings:Issuer"] ?? "http://localhost:5001",
-                audience: _config["JwtSettings:Audience"] ?? "http://localhost:5001",
+                issuer: _config["JwtSettings:Issuer"] ?? "EDISA",
+                audience: _config["JwtSettings:Audience"] ?? "EDISA",
                 claims: claims,
                 expires: expirationTime,
                 signingCredentials: creds

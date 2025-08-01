@@ -139,7 +139,7 @@ services:
       - microservice-network
     command: dotnet EmailService.dll
     volumes:
-      - ./Frontend/assets/lang:/app/Frontend/assets/lang
+      - ./Shared/LanguageFiles:/app/Shared/LanguageFiles
 
   user-service:
     build:
@@ -169,6 +169,28 @@ services:
       - microservice-network
     command: dotnet UserService.dll
 
+  notification-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    platform: linux/amd64
+    container_name: notification-service
+    working_dir: /app/NotificationService
+    ports:
+      - "5006:80"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:80
+      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=notification_db;Username=postgres;Password=123456
+      - ConnectionStrings__Redis=redis:6379
+    depends_on:
+      - postgres
+      - redis
+      - rabbitmq
+    networks:
+      - microservice-network
+    command: dotnet NotificationService.dll
+
   grpc-server:
     build:
       context: .
@@ -195,8 +217,11 @@ services:
       - "8080:80"
     depends_on:
       - gateway-api
+      - notification-service
     networks:
       - microservice-network
+    volumes:
+      - ./Shared/LanguageFiles:/usr/share/nginx/html/Shared/LanguageFiles
 
 volumes:
   pgdata:

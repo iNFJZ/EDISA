@@ -15,6 +15,7 @@ COPY FileService/FileService.csproj FileService/
 COPY GatewayApi/GatewayApi.csproj GatewayApi/
 COPY EmailService/EmailService.csproj EmailService/
 COPY UserService/UserService.csproj UserService/
+COPY NotificationService/NotificationService.csproj NotificationService/
 COPY GrpcGreeter/GrpcGreeter.csproj GrpcGreeter/
 COPY Shared/Shared.csproj Shared/
 COPY nuget.config ./
@@ -26,6 +27,7 @@ RUN dotnet restore "Shared/Shared.csproj" && \
     dotnet restore "GatewayApi/GatewayApi.csproj" && \
     dotnet restore "EmailService/EmailService.csproj" && \
     dotnet restore "UserService/UserService.csproj" && \
+    dotnet restore "NotificationService/NotificationService.csproj" && \
     dotnet restore "GrpcGreeter/GrpcGreeter.csproj"
 
 # Copy the rest of the source code
@@ -37,6 +39,7 @@ RUN dotnet build "AuthService/AuthService.csproj" -c Release --no-restore && \
     dotnet build "GatewayApi/GatewayApi.csproj" -c Release --no-restore && \
     dotnet build "EmailService/EmailService.csproj" -c Release --no-restore && \
     dotnet build "UserService/UserService.csproj" -c Release --no-restore && \
+    dotnet build "NotificationService/NotificationService.csproj" -c Release --no-restore && \
     dotnet build "GrpcGreeter/GrpcGreeter.csproj" -c Release --no-restore
 
 # Publish all projects
@@ -45,6 +48,7 @@ RUN dotnet publish "AuthService/AuthService.csproj" -c Release -o /app/publish/A
     dotnet publish "GatewayApi/GatewayApi.csproj" -c Release -o /app/publish/GatewayApi && \
     dotnet publish "EmailService/EmailService.csproj" -c Release -o /app/publish/EmailService && \
     dotnet publish "UserService/UserService.csproj" -c Release -o /app/publish/UserService && \
+    dotnet publish "NotificationService/NotificationService.csproj" -c Release -o /app/publish/NotificationService && \
     dotnet publish "GrpcGreeter/GrpcGreeter.csproj" -c Release -o /app/publish/GrpcGreeter
 
 # Final stage: Copy published applications and configuration files
@@ -57,6 +61,7 @@ COPY --from=build /app/publish/FileService /app/FileService
 COPY --from=build /app/publish/GatewayApi /app/GatewayApi
 COPY --from=build /app/publish/EmailService /app/EmailService
 COPY --from=build /app/publish/UserService /app/UserService
+COPY --from=build /app/publish/NotificationService /app/NotificationService
 COPY --from=build /app/publish/GrpcGreeter /app/GrpcGreeter
 
 # Copy configuration files for AuthService
@@ -78,5 +83,13 @@ COPY EmailService/Templates /app/EmailService/Templates
 COPY UserService/appsettings.json /app/UserService/appsettings.json
 COPY UserService/appsettings.Development.json /app/UserService/appsettings.Development.json
 
+# Copy configuration files for NotificationService
+COPY NotificationService/appsettings.json /app/NotificationService/appsettings.json
+COPY NotificationService/appsettings.Development.json /app/NotificationService/appsettings.Development.json
+
 # Copy ocelot.json for GatewayApi
 COPY GatewayApi/ocelot.json /app/GatewayApi/ocelot.json
+
+# Copy language files for all services
+COPY Shared/LanguageFiles /app/Shared/LanguageFiles
+COPY Shared/LanguageFiles /app/NotificationService/LanguageFiles

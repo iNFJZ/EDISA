@@ -60,8 +60,8 @@ builder.Services.AddAuthentication("Bearer")
             ValidateAudience = true,
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
-            ValidIssuer = builder.Configuration["JwtSettings:Issuer"] ?? "http://localhost:5001",
-            ValidAudience = builder.Configuration["JwtSettings:Audience"] ?? "http://localhost:5001",
+            ValidIssuer = builder.Configuration["JwtSettings:Issuer"] ?? "EDISA",
+            ValidAudience = builder.Configuration["JwtSettings:Audience"] ?? "EDISA",
             IssuerSigningKey = new SymmetricSecurityKey(
                 Encoding.UTF8.GetBytes(builder.Configuration["JwtSettings:Key"] ?? "thisismyverystrongsecretkey1234567890"))
         };
@@ -149,12 +149,13 @@ builder.Services.Configure<RequestLocalizationOptions>(options =>
 
 // Configure MinIO
 builder.Services.Configure<MinioOptions>(builder.Configuration.GetSection("Minio"));
-builder.Services.AddScoped<IFileService, MinioFileService>();
+builder.Services.AddSingleton<IFileService, MinioFileService>();
 
 // Configure RabbitMQ
 // builder.Services.Configure<RabbitMQOptions>(builder.Configuration.GetSection("RabbitMQ"));
 builder.Services.AddScoped<IFileValidationService, FileValidationService>();
 builder.Services.AddScoped<IEmailMessageService, EmailMessageService>();
+builder.Services.AddHttpClient<INotificationService, NotificationService>();
 
 // Add HttpClient for token validation with timeout
 builder.Services.AddHttpClient("AuthService", client =>

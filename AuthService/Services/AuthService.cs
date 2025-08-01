@@ -1,15 +1,18 @@
-﻿using AuthService.Models;
-using AuthService.Repositories;
+﻿using AuthService.Data;
 using AuthService.DTOs;
 using AuthService.Exceptions;
-using Microsoft.Extensions.Logging;
-using System.Security.Cryptography;
-using System.IdentityModel.Tokens.Jwt;
-using Microsoft.IdentityModel.Tokens;
-using System.Text;
+using AuthService.Models;
+using AuthService.Repositories;
+using AuthService.Services;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
+using Microsoft.IdentityModel.Tokens;
+using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
 using Shared.EmailModels;
+using Shared.LanguageService;
 using OtpNet;
 using System.Drawing;
 using QRCoder;
@@ -29,6 +32,7 @@ namespace AuthService.Services
         private readonly int _accountLockMinutes;
         private readonly int _resetPasswordTokenExpiryMinutes;
         private readonly IHunterEmailVerifierService _emailVerifierService;
+        private readonly INotificationService _notificationService;
 
         public AuthService(
             IUserRepository repo, 
@@ -38,7 +42,8 @@ namespace AuthService.Services
             ILogger<AuthService> logger,
             IEmailMessageService emailMessageService,
             IConfiguration config,
-            IHunterEmailVerifierService emailVerifierService)
+            IHunterEmailVerifierService emailVerifierService,
+            INotificationService notificationService)
         {
             _repo = repo;
             _sessionService = sessionService;
@@ -48,9 +53,10 @@ namespace AuthService.Services
             _emailMessageService = emailMessageService;
             _config = config;
             _emailVerifierService = emailVerifierService;
-            _maxFailedLoginAttempts = int.Parse(_config["AuthPolicy:MaxFailedLoginAttempts"] ?? "3");
-            _accountLockMinutes = int.Parse(_config["AuthPolicy:AccountLockMinutes"] ?? "5");
-            _resetPasswordTokenExpiryMinutes = int.Parse(_config["AuthPolicy:ResetPasswordTokenExpiryMinutes"] ?? "15");
+            _notificationService = notificationService;
+            _maxFailedLoginAttempts = int.Parse(_config["AuthSettings:MaxFailedLoginAttempts"] ?? "5");
+            _accountLockMinutes = int.Parse(_config["AuthSettings:AccountLockMinutes"] ?? "30");
+            _resetPasswordTokenExpiryMinutes = int.Parse(_config["AuthSettings:ResetPasswordTokenExpiryMinutes"] ?? "60");
         }
 
         public async Task<(string token, string username, string suggestedUsername, string errorCode, string message)> RegisterAsync(RegisterWithAcceptDto dto, bool acceptSuggestedUsername = false)
@@ -104,34 +110,32 @@ namespace AuthService.Services
                     throw new UserAlreadyExistsException(sanitizedEmail);
             }
 
-            string finalUsername = sanitizedUsername;
-            int retry = 0;
-            const int maxRetry = 100;
-            Exception lastException = null;
-            do
+            var existingUsername = await _repo.GetByUsernameAsync(sanitizedUsername);
+            if (existingUsername != null)
             {
-                try
+                if (!acceptSuggestedUsername)
                 {
-                    if (retry > 0)
-                    {
-                        finalUsername = $"{sanitizedUsername}{retry}";
-                    }
-                    if (retry > 0 && !acceptSuggestedUsername)
-                    {
-                        return (null, sanitizedUsername, finalUsername, "USERNAME_ALREADY_EXISTS", $"usernameSuggestionMessage");
-                    }
-                    var user = new User
-                    {
-                        Username = finalUsername,
-                        FullName = sanitizedFullName,
-                        Email = sanitizedEmail,
-                        PhoneNumber = dto.PhoneNumber?.Trim(),
-                        PasswordHash = _passwordService.HashPassword(dto.Password),
-                        LoginProvider = "Local",
-                        Status = UserStatus.Inactive,
-                        CreatedAt = DateTime.UtcNow
-                    };
-                    await _repo.AddAsync(user);
+                    var suggestedUsername = await GenerateUniqueUsernameAsync(sanitizedUsername);
+                    return (null, sanitizedUsername, suggestedUsername, "USERNAME_ALREADY_EXISTS", "usernameSuggestionMessage");
+                }
+                else
+                {
+                    sanitizedUsername = await GenerateUniqueUsernameAsync(sanitizedUsername);
+                }
+            }
+
+            var user = new User
+            {
+                Username = sanitizedUsername,
+                FullName = sanitizedFullName,
+                Email = sanitizedEmail,
+                PhoneNumber = dto.PhoneNumber?.Trim(),
+                PasswordHash = _passwordService.HashPassword(dto.Password),
+                LoginProvider = "Local",
+                Status = UserStatus.Inactive,
+                CreatedAt = DateTime.UtcNow
+            };
+            await _repo.AddAsync(user);
                     var token = _jwtService.GenerateToken(user, dto.Language ?? "en");
                     var tokenExpiry = _jwtService.GetTokenExpirationTimeSpan(token);
                     await _sessionService.StoreActiveTokenAsync(token, user.Id, tokenExpiry);
@@ -139,55 +143,72 @@ namespace AuthService.Services
                     await _sessionService.CreateUserSessionAsync(user.Id, sessionId, tokenExpiry);
                     await _sessionService.SetUserLoginStatusAsync(user.Id, true, tokenExpiry);
 
+                    var language = dto.Language ?? "en";
+                    await _notificationService.SendNotificationAsync(
+                        user.Id.ToString(),
+                        "welcomeToEdisa",
+                        "welcomeMessage",
+                        "success"
+                    );
+
                     var verifyToken = GenerateEmailVerifyToken(user.Id, user.Email);
-                    var verifyLink = $"{_config["Frontend:BaseUrl"]}/auth/account-activated.html?token={verifyToken}&lang={dto.Language ?? "en"}";
+                    var verifyLink = $"{_config["Frontend:BaseUrl"]}/auth/account-activated.html?token={verifyToken}&lang={language}";
                     await _emailMessageService.PublishRegisterNotificationAsync(new RegisterNotificationEmailEvent
                     {
                         To = user.Email,
                         Username = user.Username,
                         RegisterAt = DateTime.UtcNow,
                         VerifyLink = verifyLink,
-                        Language = dto.Language ?? "en"
+                        Language = language
                     });
-                    return (token, finalUsername, null, null, null);
-                }
-                catch (AuthException ex) when (ex.ErrorCode == "USERNAME_ALREADY_EXISTS")
-                {
-                    lastException = ex;
-                    retry++;
-                }
-            } while (retry < maxRetry);
-            throw lastException ?? new AuthException("USERNAME_ALREADY_EXISTS", $"Username '{finalUsername}' already exists");
+                    return (token, sanitizedUsername, null, null, null);
         }
 
         private async Task<string> GenerateUniqueUsernameAsync(string baseUsername)
         {
-            var username = baseUsername;
-            var counter = 1;
-            const int maxAttempts = 100;
-            while (counter <= maxAttempts)
+            var usernames = await _repo.GetUsernamesByPrefixAsync(baseUsername);
+            var maxNumber = 0;
+            var hasExactMatch = false;
+            var regex = new System.Text.RegularExpressions.Regex($"^{System.Text.RegularExpressions.Regex.Escape(baseUsername)}(\\d+)$");
+            
+            foreach (var name in usernames)
             {
-                var existingUser = await _repo.GetByUsernameAsync(username);
-                if (existingUser == null)
+                if (name.Equals(baseUsername, StringComparison.OrdinalIgnoreCase))
                 {
-                    return username;
+                    hasExactMatch = true;
+                }
+                else
+                {
+                    var match = regex.Match(name);
+                    if (match.Success && int.TryParse(match.Groups[1].Value, out int num))
+                    {
+                        if (num > maxNumber) maxNumber = num;
+                    }
+                }
+            }
+            
+            if (hasExactMatch)
+            {
+                var usedNumbers = new HashSet<int>();
+                foreach (var name in usernames)
+                {
+                    var match = regex.Match(name);
+                    if (match.Success && int.TryParse(match.Groups[1].Value, out int num))
+                    {
+                        usedNumbers.Add(num);
+                    }
                 }
                 
-                username = $"{baseUsername}{counter}";
-                counter++;
+                int nextNumber = 1;
+                while (usedNumbers.Contains(nextNumber))
+                {
+                    nextNumber++;
+                }
+                
+                return $"{baseUsername}{nextNumber}";
             }
             
-            var timestamp = DateTime.UtcNow.ToString("yyyyMMddHHmmss");
-            username = $"{baseUsername}{timestamp}";
-            
-            var finalCheck = await _repo.GetByUsernameAsync(username);
-            if (finalCheck == null)
-            {
-                return username;
-            }
-            
-            var guid = Guid.NewGuid().ToString("N").Substring(0, 8);
-            return $"{baseUsername}{guid}";
+            return baseUsername;
         }
 
         private string GenerateEmailVerifyToken(Guid userId, string email)
@@ -239,6 +260,13 @@ namespace AuthService.Services
                 user.Status = UserStatus.Active;
                 user.UpdatedAt = DateTime.UtcNow;
                 await _repo.UpdateAsync(user);
+
+                await _notificationService.SendNotificationAsync(
+                    user.Id.ToString(),
+                    "accountActivatedTitle",
+                    "accountActivatedDesc",
+                    "success"
+                );
                 var expClaim2 = jwt.Claims.FirstOrDefault(c => c.Type == "exp");
                 if (expClaim2 != null && long.TryParse(expClaim2.Value, out long expUnix2)) {
                     var expDate2 = DateTimeOffset.FromUnixTimeSeconds(expUnix2).UtcDateTime;
@@ -374,6 +402,14 @@ namespace AuthService.Services
             await _sessionService.SetUserLoginStatusAsync(user.Id, true, tokenExpiry);
             user.LastLoginAt = DateTime.UtcNow;
             await _repo.UpdateAsync(user);
+
+            await _notificationService.SendNotificationAsync(
+                user.Id.ToString(),
+                "loginWelcome",
+                "Welcome back! You have successfully logged in.",
+                "info"
+            );
+
             return new LoginResultDto { Token = token, Require2FA = false, UserId = user.Id, Message = "Login successful" };
         }
 
@@ -585,6 +621,13 @@ namespace AuthService.Services
                 ChangeAt = DateTime.UtcNow,
                 Language = dto.Language ?? "en"
             });
+
+            await _notificationService.SendNotificationAsync(
+                userId.ToString(),
+                "passwordChangedSuccessfully",
+                "Your password has been changed successfully.",
+                "success"
+            );
 
             return true;
         }

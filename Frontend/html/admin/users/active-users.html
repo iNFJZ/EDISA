@@ -200,13 +200,65 @@
                   </ul>
                 </li>
                 <!--/ Language -->
+                <!-- Notifications -->
+                <li class="nav-item dropdown-notifications navbar-dropdown dropdown me-3 me-xl-1">
+                  <a
+                    class="nav-link dropdown-toggle hide-arrow"
+                    href="javascript:void(0);"
+                    id="notificationToggle"
+                    data-bs-toggle="dropdown"
+                    data-bs-auto-close="outside"
+                    aria-expanded="false">
+                    <i class="ti ti-bell ti-md"></i>
+                    <span class="badge bg-danger rounded-pill badge-notifications">0</span>
+                  </a>
+                  <ul class="dropdown-menu dropdown-menu-end py-0" id="notificationDropdown">
+                    <li class="dropdown-menu-header border-bottom">
+                      <div class="dropdown-header d-flex align-items-center py-3">
+                        <h5 class="text-body mb-0 me-auto" data-i18n="notifications">Notification</h5>
+                        <div class="d-flex gap-2">
+                          <a
+                            href="javascript:void(0)"
+                            id="markAllReadBtn"
+                            class="dropdown-notifications-all text-body"
+                            data-bs-toggle="tooltip"
+                            data-bs-placement="top"
+                            data-i18n-title="markAllAsRead"
+                            ><i class="ti ti-mail-opened fs-4"></i
+                          ></a>
+                          <a
+                            href="javascript:void(0)"
+                            id="deleteAllBtn"
+                            class="dropdown-notifications-delete-all text-body"
+                            data-bs-toggle="tooltip"
+                            data-bs-placement="top"
+                            data-i18n-title="deleteAllNotifications"
+                            ><i class="ti ti-trash fs-4"></i
+                          ></a>
+                        </div>
+                      </div>
+                    </li>
+                    <li class="dropdown-notifications-list scrollable-container">
+                      <ul class="list-group list-group-flush">
+                        <!-- Notifications will be loaded here -->
+                      </ul>
+                    </li>
+                    <li class="dropdown-menu-footer border-top">
+                      <a
+                        href="javascript:void(0);"
+                        class="dropdown-item d-flex justify-content-center text-primary p-2 h-px-40 mb-1 align-items-center">
+                        <span data-i18n="viewAllNotifications">View all notifications</span>
+                      </a>
+                    </li>
+                  </ul>
+                </li>
                 <!-- User -->
                 <li class="nav-item navbar-dropdown dropdown-user dropdown">
                   <a class="nav-link dropdown-toggle hide-arrow" href="javascript:void(0);" data-bs-toggle="dropdown">
                     <div class="d-flex">
                       <div class="flex-shrink-0 me-3">
                         <div class="avatar avatar-online">
-                          <img class="w-px-40 h-auto rounded-circle user-avatar" />
+                          <img alt="User Avatar" class="w-px-40 h-auto rounded-circle user-avatar" />
                         </div>
                       </div>
                       <div class="flex-grow-1">
@@ -221,7 +273,7 @@
                         <div class="d-flex">
                           <div class="flex-shrink-0 me-3">
                             <div class="avatar avatar-online">
-                              <img class="w-px-40 h-auto rounded-circle user-avatar" />
+                              <img alt="User Avatar" class="w-px-40 h-auto rounded-circle user-avatar" />
                             </div>
                           </div>
                           <div class="flex-grow-1">
@@ -542,12 +594,15 @@
 
     <!-- Toastr JS -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
-    <script src="/js/notification.js"></script>
-    <script src="/js/error-handler.js"></script>
+    <script src="/js/utils/notification.js"></script>
+    <script src="/js/utils/error-handler.js"></script>
+    
+    <!-- SignalR JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/7.0.0/signalr.min.js"></script>
     
     <!-- Page JS -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
-    <script src="/js/admin-auth.js"></script>
+    <script src="/js/auth/admin.js"></script>
     <script>
       if (typeof loadActiveUsersTable === "function") {
         loadActiveUsersTable();
@@ -560,6 +615,7 @@
         }
       });
     </script>
+    <script src="/js/notifications/client.js"></script>
 
     <!-- Edit User Modal -->
     <div class="modal fade" id="editUserModal" tabindex="-1" aria-labelledby="editUserModalLabel" aria-hidden="true">
@@ -659,8 +715,8 @@
               <div class="mb-3" id="edit-profilePicture-container" style="display: none;">
                 <label class="form-label" data-i18n="currentProfilePicture">Current Profile Picture</label>
                 <div class="d-flex align-items-center">
-                  <!-- <img id="edit-profilePicture-preview" src="/assets/img/avatars/default.png" alt="Profile Picture Preview" 
-                       style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 3px solid #e7e7ff; box-shadow: 0 2px 8px rgba(0,0,0,0.1);" /> -->
+                  <img id="edit-profilePicture-preview" alt="Profile Picture Preview" 
+                       style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 3px solid #e7e7ff; box-shadow: 0 2px 8px rgba(0,0,0,0.1);" />
                   <div class="ms-3">
                     <button type="button" class="btn btn-sm btn-outline-danger" id="remove-profile-picture" data-i18n="removePicture"><i class="ti ti-trash me-1"></i>Remove Picture</button>
                   </div>
@@ -689,8 +745,8 @@
               <div class="col-12 col-md-3 text-center mb-3">
                 <div class="d-flex flex-column align-items-center justify-content-center" style="gap: 12px;">
                   <div class="avatar avatar-xl d-flex align-items-center justify-content-center" style="width: 100px; height: 100px; margin: 0 auto;">
-                    <!-- <img id="view-user-avatar" src="/assets/img/avatars/default.png" class="rounded-circle" style="width: 100px; height: 100px;" /> -->
-                    <div id="avatar-fallback" class="avatar-initial rounded-circle" style="width: 100px; height: 100px; display: none; align-items: center; justify-content: center; font-weight: bold; font-size: 40px;"></div>
+                    <img id="view-user-avatar" alt="User Avatar" class="rounded-circle" style="width: 100px; height: 100px;" />
+                    <div id="avatar-fallback" class="avatar-initial rounded-circle" style="width: 100px; height: 100px; align-items: center; justify-content: center; font-weight: bold; font-size: 40px;"></div>
                   </div>
                   <div class="user-status-badge d-flex justify-content-center"></div>
                 </div>
