@@ -20,15 +20,18 @@ namespace AuthService.Middleware
             var skipPaths = new[]
             {
                 "/api/auth/login",
+                "/api/auth/login/google",
                 "/api/auth/register",
                 "/api/auth/validate",
                 "/api/auth/forgot-password",
                 "/api/auth/reset-password",
                 "/api/auth/verify-email",
+                "/api/auth/verify-google-otp",
                 "/health",
                 "/swagger",
                 "/favicon.ico"
             };
+            
             return skipPaths.Any(skipPath => path != null && path.StartsWith(skipPath));
         }
 

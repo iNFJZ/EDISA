@@ -255,6 +255,8 @@
   "totalDeletedUsers": "削除済みユーザー合計",
   "deletedAt": "削除日時",
   "notAvailable": "利用不可",
+  "imageNotAvailable": "画像が利用できません",
+  "otpInvalid": "無効なOTPコード",
   "never": "なし",
   "id": "ID",
   "provider": "プロバイダー",

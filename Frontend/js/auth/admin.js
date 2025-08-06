@@ -144,6 +144,7 @@ class AdminAuth {
     $(".user-avatar").attr("src", "").hide();
     $(".user-name").text("");
     $(".user-role").text("");
+    
     function showFallbackAvatar(letter, seed = "default") {
       let hash = 0;
       for (let i = 0; i < seed.length; i++) {
@@ -162,10 +163,12 @@ class AdminAuth {
         "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svg)));
       $(".user-avatar").attr("src", dataUrl).show();
     }
+    
     if (!userInfo) {
       showFallbackAvatar("A", "default");
       return;
     }
+    
     let fallbackLetter = (
       userInfo.username ||
       userInfo.email ||
@@ -178,6 +181,7 @@ class AdminAuth {
     showFallbackAvatar(fallbackLetter, seed);
     $(".user-name").text(userInfo.fullName || userInfo.email || "Admin");
     $(".user-role").text("Admin");
+    
     try {
       const response = await fetch(
         `/api/User/${userInfo.id}`,
@@ -190,7 +194,41 @@ class AdminAuth {
         if (data.success && data.data) {
           const user = data.data;
           if (user.profilePicture && user.profilePicture.trim() !== "") {
-            $(".user-avatar").attr("src", user.profilePicture).show();
+            const isGooglePicture = user.profilePicture.includes('googleusercontent.com');
+            
+            const img = new Image();
+            img.onload = function() {
+              $(".user-avatar").attr("src", user.profilePicture).show();
+            };
+            img.onerror = function() {
+              showFallbackAvatar(fallbackLetter, seed);
+            };
+            
+            if (isGooglePicture) {
+              const canvas = document.createElement('canvas');
+              const ctx = canvas.getContext('2d');
+              const tempImg = new Image();
+              tempImg.crossOrigin = 'anonymous';
+              tempImg.onload = function() {
+                canvas.width = tempImg.width;
+                canvas.height = tempImg.height;
+                ctx.drawImage(tempImg, 0, 0);
+                const dataUrl = canvas.toDataURL('image/png');
+                $(".user-avatar").attr("src", dataUrl).show();
+              };
+              tempImg.onerror = function() {
+                showFallbackAvatar(fallbackLetter, seed);
+              };
+              tempImg.src = user.profilePicture;
+            } else {
+              img.src = user.profilePicture;
+            }
+            
+            setTimeout(() => {
+              if (img.complete === false || img.naturalWidth === 0) {
+                showFallbackAvatar(fallbackLetter, seed);
+              }
+            }, 2000);
           } else {
             showFallbackAvatar(fallbackLetter, seed);
           }
@@ -471,25 +509,40 @@ function getUserTableColumnDefs(isDeactive) {
     {
       targets: 0, // Avatar
       render: function (data, type, full) {
+        const letter = (full.email || "").charAt(0).toUpperCase();
+        const seed = full.email || full.username || full.fullName || "default";
+        
+        let hash = 0;
+        for (let i = 0; i < seed.length; i++) {
+          const char = seed.charCodeAt(i);
+          hash = ((hash << 5) - hash) + char;
+          hash = hash & hash;
+        }
+        
+        const hue = Math.abs(hash) % 360;
+        const saturation = 70 + (Math.abs(hash) % 20);
+        const lightness = 45 + (Math.abs(hash) % 15);
+        
+        const color = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+        
+        const fallbackAvatar = `<div class="avatar-initial rounded-circle" style="width:36px;height:36px;background:${color};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:18px;">${letter}</div>`;
+        
         if (full.profilePicture && full.profilePicture.trim() !== "") {
-          return `<img src="${full.profilePicture}" alt="User Avatar" class="rounded-circle" style="width:36px;height:36px;object-fit:cover;">`;
-        } else {
-          const letter = (full.username || "").charAt(0).toUpperCase();
-          const seed = full.email || full.username || full.fullName || "default";
+          const isGooglePicture = full.profilePicture.includes('googleusercontent.com');
           
-          let hash = 0;
-          for (let i = 0; i < seed.length; i++) {
-            const char = seed.charCodeAt(i);
-            hash = ((hash << 5) - hash) + char;
-            hash = hash & hash;
+          if (isGooglePicture) {
+            return `<div style="position:relative;width:36px;height:36px;">
+              ${fallbackAvatar}
+              <img src="${full.profilePicture}" alt="User Avatar" class="rounded-circle" style="width:36px;height:36px;object-fit:cover;position:absolute;top:0;left:0;opacity:0;transition:opacity 0.3s;" onerror="this.style.opacity='0';" onload="this.style.opacity='1'; this.previousElementSibling.style.display='none';">
+            </div>`;
+          } else {
+            return `<div style="position:relative;width:36px;height:36px;">
+              ${fallbackAvatar}
+              <img src="${full.profilePicture}" alt="User Avatar" class="rounded-circle" style="width:36px;height:36px;object-fit:cover;position:absolute;top:0;left:0;opacity:0;transition:opacity 0.3s;" onerror="this.style.opacity='0';" onload="this.style.opacity='1'; this.previousElementSibling.style.display='none';">
+            </div>`;
           }
-          
-          const hue = Math.abs(hash) % 360;
-          const saturation = 70 + (Math.abs(hash) % 20);
-          const lightness = 45 + (Math.abs(hash) % 15);
-          
-          const color = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
-          return `<div class="avatar-initial rounded-circle" style="width:36px;height:36px;background:${color};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:18px;">${letter}</div>`;
+        } else {
+          return fallbackAvatar;
         }
       },
     },
@@ -2103,9 +2156,36 @@ function openEditUserModal(userId) {
       $("#edit-bio").val(user.bio || "");
       $("#edit-status").val(user.status ? String(user.status) : "1");
       $("#edit-isVerified").prop("checked", !!user.isVerified);
-      if (user.profilePicture) {
-        $("#edit-profilePicture-preview").attr("src", user.profilePicture);
-        $("#edit-profilePicture-container").show();
+      if (user.profilePicture && user.profilePicture.trim() !== "") {
+        const $preview = $("#edit-profilePicture-preview");
+        const $container = $("#edit-profilePicture-container");
+        
+        const letter = (user.username || user.email || "").charAt(0).toUpperCase();
+        const seed = user.email || user.username || user.fullName || "default";
+        
+        let hash = 0;
+        for (let i = 0; i < seed.length; i++) {
+          const char = seed.charCodeAt(i);
+          hash = ((hash << 5) - hash) + char;
+          hash = hash & hash;
+        }
+        
+        const hue = Math.abs(hash) % 360;
+        const saturation = 70 + (Math.abs(hash) % 20);
+        const lightness = 45 + (Math.abs(hash) % 15);
+        
+        const color = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+        const fallbackSvg = `<svg width='80' height='80' xmlns='http://www.w3.org/2000/svg'><circle cx='40' cy='40' r='40' fill='${color}'/><text x='50%' y='50%' text-anchor='middle' dy='.35em' font-family='Arial' font-size='32' fill='#fff'>${letter}</text></svg>`;
+        const fallbackDataUrl = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(fallbackSvg)));
+        
+        $preview.attr("src", user.profilePicture)
+          .on("error", function() {
+            $(this).attr("src", fallbackDataUrl);
+          })
+          .on("load", function() {
+          });
+        
+        $container.show();
       } else {
         $("#edit-profilePicture-container").hide();
       }
@@ -2198,11 +2278,39 @@ function openViewUserModal(userId) {
       const $fallback = $("#avatar-fallback");
       
       if (user.profilePicture && user.profilePicture.trim() !== "") {
-        $avatar.attr("src", user.profilePicture).show();
-        $fallback.hide();
+        const letter = (user.username || user.email || "").charAt(0).toUpperCase();
+        const seed = user.email || user.username || user.fullName || "default";
+        
+        let hash = 0;
+        for (let i = 0; i < seed.length; i++) {
+          const char = seed.charCodeAt(i);
+          hash = ((hash << 5) - hash) + char;
+          hash = hash & hash;
+        }
+        
+        const hue = Math.abs(hash) % 360;
+        const saturation = 70 + (Math.abs(hash) % 20);
+        const lightness = 45 + (Math.abs(hash) % 15);
+        
+        const color = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+        $fallback
+          .text(letter)
+          .css({ background: color, color: "#fff", display: "flex" });
+        
+        // Thêm onerror handler cho ảnh
+        $avatar.attr("src", user.profilePicture)
+          .on("error", function() {
+            $(this).hide();
+            $fallback.show();
+          })
+          .on("load", function() {
+            $fallback.hide();
+            $(this).show();
+          })
+          .show();
       } else {
         $avatar.hide();
-        const letter = (user.email || "").charAt(0).toUpperCase();
+        const letter = (user.username || user.email || "").charAt(0).toUpperCase();
         const seed = user.email || user.username || user.fullName || "default";
         
         let hash = 0;
@@ -2646,7 +2754,34 @@ async function loadUserProfile() {
       $("#profile-phone").val(user.phone || "");
 
       if (user.profilePicture && user.profilePicture.trim() !== "") {
-        $("#profile-picture-preview").attr("src", user.profilePicture).show();
+        const $preview = $("#profile-picture-preview");
+        const letter = (user.fullName || user.username || "U")
+          .charAt(0)
+          .toUpperCase();
+        const seed = user.email || user.username || user.fullName || "default";
+        
+        let hash = 0;
+        for (let i = 0; i < seed.length; i++) {
+          const char = seed.charCodeAt(i);
+          hash = ((hash << 5) - hash) + char;
+          hash = hash & hash;
+        }
+        
+        const hue = Math.abs(hash) % 360;
+        const saturation = 70 + (Math.abs(hash) % 20);
+        const lightness = 45 + (Math.abs(hash) % 15);
+        
+        const color = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+        const svg = `<svg width='100' height='100' xmlns='http://www.w3.org/2000/svg'><circle cx='50' cy='50' r='50' fill='${color}'/><text x='50%' y='50%' text-anchor='middle' dy='.35em' font-family='Arial' font-size='40' fill='#fff'>${letter}</text></svg>`;
+        const fallbackDataUrl = "data:image/svg+xml;base64," + btoa(unescape(encodeURIComponent(svg)));
+        
+        $preview.attr("src", user.profilePicture)
+          .on("error", function() {
+            $(this).attr("src", fallbackDataUrl);
+          })
+          .on("load", function() {
+          })
+          .show();
       } else {
         const letter = (user.fullName || user.username || "U")
           .charAt(0)
@@ -3439,7 +3574,7 @@ $(document).off("click", "#enableTOTPBtn").on("click", "#enableTOTPBtn", async f
       const res = await fetch("/api/Auth/verify-2fa-totp", {
         method: "POST",
         headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify(otp),
+        body: JSON.stringify({ code: otp }),
       });
       const data = await res.json();
       if (res.ok && data.success) {
