@@ -27,7 +27,8 @@ namespace AuthService.Services
             IJwtService jwtService,
             IEmailMessageService emailMessageService,
             IConfiguration config,
-            HttpClient httpClient)
+            HttpClient httpClient,
+            ILogger<GoogleAuthService> logger)
         {
             _userRepository = userRepository;
             _sessionService = sessionService;
@@ -35,6 +36,7 @@ namespace AuthService.Services
             _emailMessageService = emailMessageService;
             _config = config;
             _httpClient = httpClient;
+            _logger = logger;
         }
 
         public async Task<GoogleUserInfo> GetGoogleUserInfoAsync(string accessToken)
@@ -63,6 +65,10 @@ namespace AuthService.Services
                     throw new InvalidGoogleTokenException("Invalid user info from Google");
                 }
 
+                if (!string.IsNullOrEmpty(googleUserInfo.Picture))
+                {
+                    googleUserInfo.Picture = ValidateAndFixGooglePictureUrl(googleUserInfo.Picture);
+                }
 
                 return googleUserInfo;
             }
@@ -72,133 +78,209 @@ namespace AuthService.Services
             }
         }
 
-        public async Task<string> LoginWithGoogleAsync(GoogleLoginDto dto)
+        private string ValidateAndFixGooglePictureUrl(string pictureUrl)
         {
-            var clientId = _config["GoogleAuth:ClientId"];
-            var clientSecret = _config["GoogleAuth:ClientSecret"];
-            
-            var tokenRequest = new HttpRequestMessage(HttpMethod.Post, "https://oauth2.googleapis.com/token")
+            try
             {
-                Content = new FormUrlEncodedContent(new Dictionary<string, string>
+                if (!Uri.TryCreate(pictureUrl, UriKind.Absolute, out var uri))
                 {
-                    { "code", dto.Code },
-                    { "client_id", clientId ?? throw new InvalidOperationException("Google ClientId is not configured") },
-                    { "client_secret", clientSecret ?? throw new InvalidOperationException("Google ClientSecret is not configured") },
-                    { "redirect_uri", dto.RedirectUri },
-                    { "grant_type", "authorization_code" }
-                })
-            };
-            
-            var tokenResponse = await _httpClient.SendAsync(tokenRequest);
-            var tokenContent = await tokenResponse.Content.ReadAsStringAsync();
-            
-            if (!tokenResponse.IsSuccessStatusCode)
-                throw new InvalidGoogleTokenException("Failed to exchange code for access token: " + tokenContent);
+                    return string.Empty;
+                }
 
-            var tokenData = JsonSerializer.Deserialize<JsonElement>(tokenContent);
-            var accessToken = tokenData.GetProperty("access_token").GetString() ?? throw new InvalidGoogleTokenException("Access token is null");
+                if (uri.Scheme != "https")
+                {
+                    return pictureUrl.Replace("http://", "https://");
+                }
 
-            var googleUserInfo = await GetGoogleUserInfoAsync(accessToken);
-        
-            var existingUser = await _userRepository.GetByGoogleIdIncludeDeletedAsync(googleUserInfo.Sub);
-            bool isNewUser = false;
-            
-            if (existingUser != null)
+                return pictureUrl;
+            }
+            catch
             {
-                if (existingUser.DeletedAt.HasValue)
-                {
-                    throw new AccountDeletedException();
-                }
+                return string.Empty;
+            }
+        }
+
+        private bool VerifyOtpCode(string otpCode, string twoFactorSecret)
+        {
+            if (string.IsNullOrWhiteSpace(otpCode) || string.IsNullOrWhiteSpace(twoFactorSecret))
+                return false;
                 
-                if (existingUser.Status == UserStatus.Banned)
+            try
+            {
+                var totp = new OtpNet.Totp(OtpNet.Base32Encoding.ToBytes(twoFactorSecret));
+                return totp.VerifyTotp(otpCode.Trim(), out long _, OtpNet.VerificationWindow.RfcSpecifiedNetworkDelay);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public async Task<(string? token, bool require2FA, Guid? userId, string? message)> LoginWithGoogleAsync(GoogleLoginDto dto)
+        {
+            _logger.LogInformation("GoogleAuthService.LoginWithGoogleAsync started");
+            
+            if (dto == null || string.IsNullOrEmpty(dto.Code) || string.IsNullOrEmpty(dto.RedirectUri))
+            {
+                return (null, false, null, "Invalid request parameters");
+            }
+
+            try
+            {
+                var clientId = _config["GoogleAuth:ClientId"];
+                var clientSecret = _config["GoogleAuth:ClientSecret"];
+
+                if (string.IsNullOrEmpty(clientId) || string.IsNullOrEmpty(clientSecret))
                 {
-                    throw new AccountBannedException();
+                    _logger.LogError("Google OAuth configuration is missing");
+                    return (null, false, null, "Google OAuth configuration error");
                 }
+
+                var tokenRequest = new FormUrlEncodedContent(new[]
+                {
+                    new KeyValuePair<string, string>("client_id", clientId),
+                    new KeyValuePair<string, string>("client_secret", clientSecret),
+                    new KeyValuePair<string, string>("code", dto.Code),
+                    new KeyValuePair<string, string>("grant_type", "authorization_code"),
+                    new KeyValuePair<string, string>("redirect_uri", dto.RedirectUri)
+                });
+
+                var tokenResponse = await _httpClient.PostAsync("https://oauth2.googleapis.com/token", tokenRequest);
+                var tokenContent = await tokenResponse.Content.ReadAsStringAsync();
+
+                if (!tokenResponse.IsSuccessStatusCode)
+                {
+                    _logger.LogError("Google token request failed: {StatusCode}, {Content}", tokenResponse.StatusCode, tokenContent);
+                    throw new Exceptions.InvalidGoogleTokenException("Failed to exchange Google OAuth code for token");
+                }
+
+                var tokenData = JsonSerializer.Deserialize<JsonElement>(tokenContent);
+                var accessToken = tokenData.GetProperty("access_token").GetString();
+
+                if (string.IsNullOrEmpty(accessToken))
+                {
+                    throw new Exceptions.InvalidGoogleTokenException("Access token not found in Google response");
+                }
+
+                var googleUserInfo = await GetGoogleUserInfoAsync(accessToken);
+                if (googleUserInfo == null)
+                {
+                    throw new Exceptions.InvalidGoogleTokenException("Failed to get user info from Google");
+                }
+
+                var existingUser = await _userRepository.GetByGoogleIdAsync(googleUserInfo.Sub);
+                bool isNewUser = false;
+
+                if (existingUser == null)
+                {
+                    existingUser = await _userRepository.GetByEmailAsync(googleUserInfo.Email);
+                    if (existingUser != null)
+                    {
+                        existingUser.GoogleId = googleUserInfo.Sub;
+                        existingUser.LoginProvider = "Google";
+                        existingUser.UpdatedAt = DateTime.UtcNow;
+                        await _userRepository.UpdateAsync(existingUser);
+                    }
+                    else
+                    {
+                        existingUser = new User
+                        {
+                            Username = await GenerateUniqueUsernameFromGoogleInfoAsync(googleUserInfo),
+                            FullName = googleUserInfo.Name,
+                            Email = googleUserInfo.Email,
+                            GoogleId = googleUserInfo.Sub,
+                            ProfilePicture = ValidateAndFixGooglePictureUrl(googleUserInfo.Picture),
+                            LoginProvider = "Google",
+                            CreatedAt = DateTime.UtcNow,
+                            IsVerified = true,
+                            Status = UserStatus.Active,
+                        };
+
+                        await _userRepository.AddAsync(existingUser);
+                        isNewUser = true;
+                    }
+                }
+
+                string resetToken = "";
+                if (isNewUser)
+                {
+                    resetToken = GenerateResetToken();
+                    var resetTokenExpiry = TimeSpan.FromHours(1);
+                    await _sessionService.StoreResetTokenAsync(resetToken, existingUser.Id, resetTokenExpiry);
+                    
+                    await _emailMessageService.PublishRegisterGoogleNotificationAsync(new RegisterGoogleNotificationEmailEvent
+                    {
+                        To = existingUser.Email,
+                        Username = existingUser.FullName ?? existingUser.Username,
+                        Token = resetToken,
+                        RegisterAt = DateTime.UtcNow,
+                        Language = dto?.Language ?? "en"
+                    });
+                }
+
+                if (existingUser.TwoFactorEnabled && !string.IsNullOrEmpty(existingUser.TwoFactorSecret))
+                {
+                    if (string.IsNullOrWhiteSpace(dto.OtpCode))
+                    {
+                        _logger.LogInformation("2FA enabled but no OTP code provided for user {UserId}", existingUser.Id);
+                        return (null, true, existingUser.Id, "2FA code required");
+                    }
+                    
+                    if (!VerifyOtpCode(dto.OtpCode, existingUser.TwoFactorSecret))
+                    {
+                        _logger.LogWarning("Invalid OTP code for user {UserId}", existingUser.Id);
+                        return (null, true, existingUser.Id, "Invalid 2FA code");
+                    }
+                    _logger.LogInformation("OTP verification successful for user {UserId}", existingUser.Id);
+                }
+
+                var token = _jwtService.GenerateToken(existingUser, dto?.Language ?? "en");
+                var tokenExpiry = _jwtService.GetTokenExpirationTimeSpan(token);
+
+                await _sessionService.StoreActiveTokenAsync(token, existingUser.Id, tokenExpiry);
                 
-                existingUser.LoginProvider = "Google";
-                if (existingUser.Status != UserStatus.Suspended)
-                {
-                    existingUser.Status = UserStatus.Active;
-                }
-                existingUser.UpdatedAt = DateTime.UtcNow;
+                var sessionId = Guid.NewGuid().ToString();
+                await _sessionService.CreateUserSessionAsync(existingUser.Id, sessionId, tokenExpiry);
+                await _sessionService.SetUserLoginStatusAsync(existingUser.Id, true, tokenExpiry);
+                
                 existingUser.LastLoginAt = DateTime.UtcNow;
                 await _userRepository.UpdateAsync(existingUser);
+
+                return (token, false, existingUser.Id, "Login successful");
             }
-            else
+            catch
             {
-                existingUser = await _userRepository.GetByEmailAsync(googleUserInfo.Email);
-                
-                if (existingUser != null)
-                {
-                    if (existingUser.DeletedAt.HasValue)
-                    {
-                        throw new AccountDeletedException();
-                    }
-                    
-                    if (existingUser.Status == UserStatus.Banned)
-                    {
-                        throw new AccountBannedException();
-                    }
-                    
-                    existingUser.GoogleId = googleUserInfo.Sub;
-                    existingUser.LoginProvider = "Google";
-                    if (existingUser.Status != UserStatus.Suspended)
-                    {
-                        existingUser.Status = UserStatus.Active;
-                    }
-                    existingUser.UpdatedAt = DateTime.UtcNow;
-                    existingUser.IsVerified = true;
-                    existingUser.LastLoginAt = DateTime.UtcNow;
-                    await _userRepository.UpdateAsync(existingUser);
-                }
-                else
-                {
-                    existingUser = new User
-                    {
-                        Username = await GenerateUniqueUsernameFromGoogleInfoAsync(googleUserInfo),
-                        FullName = googleUserInfo.Name,
-                        Email = googleUserInfo.Email,
-                        GoogleId = googleUserInfo.Sub,
-                        ProfilePicture = googleUserInfo.Picture,
-                        LoginProvider = "Google",
-                        CreatedAt = DateTime.UtcNow,
-                        IsVerified = true,
-                        Status = UserStatus.Active,
-                        LastLoginAt = DateTime.UtcNow
-                    };
-
-                    await _userRepository.AddAsync(existingUser);
-                    isNewUser = true;
-                }
+                throw;
             }
+        }
 
-            string resetToken = "";
-            if (isNewUser)
+        public async Task<(bool success, string? token, string? message)> VerifyGoogleOtpAsync(Guid userId, string otpCode, string? language)
+        {
+            var user = await _userRepository.GetByIdAsync(userId);
+            if (user == null)
             {
-                resetToken = GenerateResetToken();
-                var resetTokenExpiry = TimeSpan.FromHours(1);
-                await _sessionService.StoreResetTokenAsync(resetToken, existingUser.Id, resetTokenExpiry);
-                
-                await _emailMessageService.PublishRegisterGoogleNotificationAsync(new RegisterGoogleNotificationEmailEvent
-                {
-                    To = existingUser.Email,
-                    Username = existingUser.FullName ?? existingUser.Username,
-                    Token = resetToken,
-                    RegisterAt = DateTime.UtcNow,
-                    Language = dto?.Language ?? "en"
-                });
+                return (false, null, "User not found");
             }
-
-            var token = _jwtService.GenerateToken(existingUser, dto?.Language ?? "en");
-            var tokenExpiry = _jwtService.GetTokenExpirationTimeSpan(token);
-
-            await _sessionService.StoreActiveTokenAsync(token, existingUser.Id, tokenExpiry);
             
+            if (!user.TwoFactorEnabled || string.IsNullOrEmpty(user.TwoFactorSecret))
+            {
+                return (false, null, "2FA not enabled");
+            }
+            
+            if (!VerifyOtpCode(otpCode, user.TwoFactorSecret))
+            {
+                return (false, null, "Invalid 2FA code");
+            }
+            
+            var token = _jwtService.GenerateToken(user, language ?? "en");
+            var tokenExpiry = _jwtService.GetTokenExpirationTimeSpan(token);
+            await _sessionService.StoreActiveTokenAsync(token, user.Id, tokenExpiry);
             var sessionId = Guid.NewGuid().ToString();
-            await _sessionService.CreateUserSessionAsync(existingUser.Id, sessionId, tokenExpiry);
-            await _sessionService.SetUserLoginStatusAsync(existingUser.Id, true, tokenExpiry);
-
-            return token;
+            await _sessionService.CreateUserSessionAsync(user.Id, sessionId, tokenExpiry);
+            await _sessionService.SetUserLoginStatusAsync(user.Id, true, tokenExpiry);
+            user.LastLoginAt = DateTime.UtcNow;
+            await _userRepository.UpdateAsync(user);
+            return (true, token, "Login successful");
         }
 
         private async Task<string> GenerateUniqueUsernameFromGoogleInfoAsync(GoogleUserInfo googleUserInfo)

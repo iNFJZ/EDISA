@@ -63,20 +63,26 @@ namespace AuthService.Controllers
         [HttpPost("login/google")]
         public async Task<IActionResult> LoginWithGoogle([FromBody] GoogleLoginDto dto)
         {
-            
             if (dto == null || string.IsNullOrEmpty(dto.Code) || string.IsNullOrEmpty(dto.RedirectUri))
             {
                 return BadRequest(new { message = "Code and RedirectUri are required" });
             }
-            
             try
             {
-                var token = await _googleAuth.LoginWithGoogleAsync(dto);
-                return Ok(new { token });
+                var result = await _googleAuth.LoginWithGoogleAsync(dto);
+                if (result.require2FA)
+                {
+                    return Ok(new { success = false, require2FA = true, userId = result.userId, message = result.message });
+                }
+                return Ok(new { success = true, token = result.token, message = result.message, redirectUrl = $"{_config["Frontend:BaseUrl"]}/admin/index.html" });
             }
             catch (Exceptions.InvalidGoogleTokenException ex)
             {
                 return BadRequest(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Internal server error" });
             }
         }
 
@@ -313,12 +319,12 @@ namespace AuthService.Controllers
 
         [Authorize]
         [HttpPost("verify-2fa-totp")]
-        public async Task<IActionResult> VerifyTwoFactor([FromBody] string code)
+        public async Task<IActionResult> VerifyTwoFactor([FromBody] VerifyOtpDto dto)
         {
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
             if (userIdClaim == null || !Guid.TryParse(userIdClaim.Value, out Guid userId))
                 return Unauthorized();
-            var valid = await _auth.VerifyTwoFactorAsync(userId, code);
+            var valid = await _auth.VerifyTwoFactorAsync(userId, dto.Code);
             if (valid) return Ok(new { success = true });
             return BadRequest(new { success = false, message = "Invalid OTP code" });
         }
@@ -358,6 +364,33 @@ namespace AuthService.Controllers
             if (user == null)
                 return NotFound(new { success = false, message = "User not found" });
             return Ok(new { success = true, twoFactorEnabled = user.TwoFactorEnabled });
+        }
+
+        [HttpPost("verify-google-otp")]
+        public async Task<IActionResult> VerifyGoogleOtp([FromBody] VerifyGoogleOtpDto dto)
+        {
+            if (dto == null || !dto.UserId.HasValue || string.IsNullOrEmpty(dto.OtpCode))
+            {
+                return BadRequest(new { message = "UserId and OtpCode are required" });
+            }
+            
+            try
+            {
+                var result = await _googleAuth.VerifyGoogleOtpAsync(dto.UserId.Value, dto.OtpCode, dto.Language);
+                
+                if (result.success)
+                {
+                    return Ok(new { success = true, token = result.token, message = result.message, redirectUrl = $"{_config["Frontend:BaseUrl"]}/admin/index.html" });
+                }
+                else
+                {
+                    return Ok(new { success = false, require2FA = true, userId = dto.UserId, message = result.message });
+                }
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "Internal server error" });
+            }
         }
 
 

@@ -322,6 +322,22 @@ namespace AuthService.Services
             return user?.Email;
         }
 
+        private bool VerifyOtpCode(string otpCode, string twoFactorSecret)
+        {
+            if (string.IsNullOrWhiteSpace(otpCode) || string.IsNullOrWhiteSpace(twoFactorSecret))
+                return false;
+                
+            try
+            {
+                var totp = new OtpNet.Totp(OtpNet.Base32Encoding.ToBytes(twoFactorSecret));
+                return totp.VerifyTotp(otpCode.Trim(), out long _, OtpNet.VerificationWindow.RfcSpecifiedNetworkDelay);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         public async Task<LoginResultDto> LoginAsync(LoginDto dto)
         {
             var sanitizedEmail = dto.Email?.Trim().ToLowerInvariant();
@@ -388,8 +404,7 @@ namespace AuthService.Services
                 {
                     return new LoginResultDto { Require2FA = true, UserId = user.Id, Message = "2FA code required" };
                 }
-                var totp = new OtpNet.Totp(OtpNet.Base32Encoding.ToBytes(user.TwoFactorSecret));
-                if (!totp.VerifyTotp(dto.OtpCode.Trim(), out long _, new OtpNet.VerificationWindow(2, 2)))
+                if (!VerifyOtpCode(dto.OtpCode, user.TwoFactorSecret))
                 {
                     return new LoginResultDto { Require2FA = true, UserId = user.Id, Message = "Invalid 2FA code" };
                 }
@@ -667,29 +682,36 @@ namespace AuthService.Services
         public async Task<bool> VerifyTwoFactorAsync(Guid userId, string code)
         {
             var user = await _repo.GetByIdAsync(userId);
-            if (user == null || string.IsNullOrEmpty(user.TwoFactorSecret)) return false;
-            var totp = new Totp(Base32Encoding.ToBytes(user.TwoFactorSecret));
-            var valid = totp.VerifyTotp(code, out long _, VerificationWindow.RfcSpecifiedNetworkDelay);
-            if (valid)
+            if (user == null || string.IsNullOrEmpty(user.TwoFactorSecret))
+                return false;
+
+            if (!VerifyOtpCode(code, user.TwoFactorSecret))
+                return false;
+
+            if (!user.TwoFactorEnabled)
             {
                 user.TwoFactorEnabled = true;
+                user.UpdatedAt = DateTime.UtcNow;
                 await _repo.UpdateAsync(user);
             }
-            return valid;
+
+            return true;
         }
 
         public async Task<bool> DisableTwoFactorAsync(Guid userId, string code, string? language = null)
         {
             var user = await _repo.GetByIdAsync(userId);
-            if (user == null || string.IsNullOrEmpty(user.TwoFactorSecret) || !user.TwoFactorEnabled)
-                throw new AuthException("2FA_NOT_ENABLED", "2FA is not enabled");
-            var totp = new Totp(Base32Encoding.ToBytes(user.TwoFactorSecret));
-            var valid = totp.VerifyTotp(code, out long _, VerificationWindow.RfcSpecifiedNetworkDelay);
-            if (!valid)
-                throw new AuthException("INVALID_OTP_CODE", "Invalid OTP code");
-            user.TwoFactorSecret = null;
+            if (user == null || !user.TwoFactorEnabled || string.IsNullOrEmpty(user.TwoFactorSecret))
+                return false;
+
+            if (!VerifyOtpCode(code, user.TwoFactorSecret))
+                return false;
+
             user.TwoFactorEnabled = false;
+            user.TwoFactorSecret = null;
+            user.UpdatedAt = DateTime.UtcNow;
             await _repo.UpdateAsync(user);
+
             return true;
         }
 

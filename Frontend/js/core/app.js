@@ -172,6 +172,83 @@ window.addEventListener("DOMContentLoaded", async () => {
           window.location.href = "/admin/";
         }, 1000);
         success = true;
+      } else if (data.require2FA) {
+        showToastrMessage(window.i18next.t("pleaseEnter2faCode"), "info");
+        
+        if (!document.getElementById("otpModal")) {
+          const modalHtml = `
+            <div class="modal fade" id="otpModal" tabindex="-1" aria-labelledby="otpModalLabel" aria-hidden="true">
+              <div class="modal-dialog modal-sm modal-dialog-centered">
+                <div class="modal-content p-3">
+                  <div class="modal-header py-2">
+                    <h5 class="modal-title" id="otpModalLabel">${window.i18next.t("twoFactorAuth")}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="${window.i18next.t("close")}"></button>
+                  </div>
+                  <div class="modal-body pt-2 pb-1">
+                    <div class="mb-2 small">${window.i18next.t("enterOtpCode")}</div>
+                    <input type="text" class="form-control form-control-sm mb-2 text-center" id="otpModalInput" maxlength="8" autocomplete="one-time-code" placeholder="${window.i18next.t("enterOtpCode")}" style="font-size:1.1em;letter-spacing:2px;" />
+                    <div class="text-danger small" id="otpModalError"></div>
+                  </div>
+                  <div class="modal-footer pt-1 pb-2 border-0">
+                    <button type="button" class="btn btn-primary btn-sm w-100" id="otpModalSubmit">${window.i18next.t("verifyOtp")}</button>
+                  </div>
+                </div>
+              </div>
+            </div>`;
+          $("body").append(modalHtml);
+        }
+        
+        const otpModal = new bootstrap.Modal(document.getElementById("otpModal"));
+        const otpInput = document.getElementById("otpModalInput");
+        const otpError = document.getElementById("otpModalError");
+        
+        otpInput.value = "";
+        otpError.textContent = "";
+        otpModal.show();
+        otpInput.focus();
+        
+        $("#otpModalSubmit").off("click").on("click", async function () {
+          const otpVal = otpInput.value.trim();
+          if (!otpVal) {
+            otpError.textContent = window.i18next.t("otpRequired");
+            return;
+          }
+          
+          const otpRequestBody = { 
+            userId: data.userId, 
+            OtpCode: otpVal,
+            language: getCurrentLanguage()
+          };
+          
+          const res2 = await fetch(`${API_BASE_URL}/Auth/verify-google-otp`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(otpRequestBody),
+          });
+          
+          const data2 = await res2.json();
+          if (res2.ok && data2.token) {
+            localStorage.setItem("authToken", data2.token);
+            otpModal.hide();
+            const cleanUrl = window.location.origin + window.location.pathname;
+            window.history.replaceState({}, document.title, cleanUrl);
+            showToastrMessage(window.i18next.t("googleLoginSuccessfulRedirecting"), "success");
+            setTimeout(() => {
+              window.location.href = "/admin/";
+            }, 1000);
+            success = true;
+          } else {
+            otpError.textContent = window.i18next.t("invalidOtpCode");
+          }
+        });
+        
+        $("#otpModalInput").off("keydown").on("keydown", function (e) {
+          if (e.key === "Enter") {
+            $("#otpModalSubmit").click();
+          }
+        });
+        
+        return;
       } else {
         let errorMsg = data.message || window.i18next.t("googleLoginFailed");
         if (errorMsg.toLowerCase().includes("banned")) {
@@ -972,7 +1049,7 @@ function showUserDetailModal(user) {
       <div><b>${window.i18next.t("bio")}:</b> ${sanitizeHtml(user.bio || window.i18next.t("notAvailable"))}</div>
       <div><b>${window.i18next.t("dateOfBirth")}:</b> ${user.dateOfBirth ? new Date(user.dateOfBirth).toLocaleDateString("en-GB") : window.i18next.t("notAvailable")}</div>
       <div><b>${window.i18next.t("provider")}:</b> ${sanitizeHtml(user.loginProvider || window.i18next.t("notAvailable"))}</div>
-      <div><b>${window.i18next.t("profilePicture")}:</b> ${user.profilePicture ? `<img src='${user.profilePicture}' alt='avatar' style='max-width:60px;max-height:60px;border-radius:50%;'/>` : window.i18next.t("notAvailable")}</div>
+      <div><b>${window.i18next.t("profilePicture")}:</b> ${user.profilePicture ? `<img src='${user.profilePicture}' alt='avatar' style='max-width:60px;max-height:60px;border-radius:50%;' onerror='this.style.display=\"none\"; this.nextElementSibling.style.display=\"inline\";' onload='this.style.display=\"inline\"; this.nextElementSibling.style.display=\"none\";'/><span style='display:inline;color:#666;'>${window.i18next.t("imageNotAvailable")}</span>` : window.i18next.t("notAvailable")}</div>
     `;
   setActiveModal(modal);
   modal.style.display = "block";

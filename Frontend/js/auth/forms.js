@@ -6,7 +6,51 @@ import {
 } from "./utils.js";
 import { apiRequest } from "./api.js";
 
+// Global variables for 2FA
+let otpStep = 1;
+let lastLoginPayload = null;
+let otpModal = null;
+let otpInputElem = null;
+
 const API_BASE_URL = "/api";
+
+// 2FA Modal functions
+function updateOtpModalI18n() {
+  const modal = document.getElementById("otpModal");
+  if (!modal) return;
+  $("#otpModalLabel").text(window.i18next.t("twoFactorAuth"));
+  $("#otpModalInput").attr("placeholder", window.i18next.t("enterOtpCode"));
+  $("#otpModal .modal-body .mb-2").text(window.i18next.t("enterOtpCode"));
+  $("#otpModalSubmit").text(window.i18next.t("verifyOtp"));
+  $("#otpModalError").text("");
+  $("#otpModal .btn-close").attr("aria-label", window.i18next.t("close"));
+}
+
+function ensureOtpModal() {
+  if (document.getElementById("otpModal")) return;
+  const modalHtml = `
+    <div class="modal fade" id="otpModal" tabindex="-1" aria-labelledby="otpModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content p-3">
+          <div class="modal-header py-2">
+            <h5 class="modal-title" id="otpModalLabel">${window.i18next.t("twoFactorAuth")}</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="${window.i18next.t("close")}"></button>
+          </div>
+          <div class="modal-body pt-2 pb-1">
+            <div class="mb-2 small">${window.i18next.t("enterOtpCode")}</div>
+            <input type="text" class="form-control form-control-sm mb-2 text-center" id="otpModalInput" maxlength="8" autocomplete="one-time-code" placeholder="${window.i18next.t("enterOtpCode")}" style="font-size:1.1em;letter-spacing:2px;" />
+            <div class="text-danger small" id="otpModalError"></div>
+          </div>
+          <div class="modal-footer pt-1 pb-2 border-0">
+            <button type="button" class="btn btn-primary btn-sm w-100" id="otpModalSubmit">${window.i18next.t("verifyOtp")}</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  $("body").append(modalHtml);
+  otpModal = new bootstrap.Modal(document.getElementById("otpModal"));
+  updateOtpModalI18n();
+}
 
 const GOOGLE_CLIENT_ID =
   "157841978934-fmgq60lshk9iq65s7h37mc7ta78m8nu3.apps.googleusercontent.com";
@@ -59,6 +103,58 @@ window.addEventListener("DOMContentLoaded", async function () {
         setTimeout(() => {
           window.location.href = "/admin/";
         }, 1000);
+      } else if (data.require2FA) {
+        otpStep = 2;
+        lastLoginPayload = { userId: data.userId, language };
+        ensureOtpModal();
+        otpInputElem = document.getElementById("otpModalInput");
+        document.getElementById("otpModalError").textContent = "";
+        otpInputElem.value = "";
+        otpInputElem.focus();
+        otpModal = otpModal || new bootstrap.Modal(document.getElementById("otpModal"));
+        otpModal.show();
+        safeShowToastrMessage(window.i18next.t("pleaseEnter2faCode"), "info");
+        
+        $("#otpModalSubmit").off("click").on("click", async function () {
+          const otpVal = otpInputElem.value.trim();
+          if (!otpVal) {
+            document.getElementById("otpModalError").textContent = window.i18next.t("otpRequired");
+            return;
+          }
+          
+          const otpRequestBody = { 
+            userId: lastLoginPayload.userId, 
+            OtpCode: otpVal,
+            language: getCurrentLanguage()
+          };
+          
+          const res2 = await fetch(`${API_BASE_URL}/Auth/verify-google-otp`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(otpRequestBody),
+          });
+          const data2 = await res2.json();
+          if (res2.ok && data2.token) {
+            localStorage.setItem("authToken", data2.token);
+            if (data2.language) {
+              window.i18next.changeLanguage(data2.language);
+            }
+            otpModal.hide();
+            safeShowToastrMessage(window.i18next.t("googleLoginSuccessfulRedirecting"), "success");
+            setTimeout(() => {
+              window.location.href = "/admin/";
+            }, 1000);
+          } else {
+            document.getElementById("otpModalError").textContent = window.i18next.t("invalidOtpCode");
+          }
+        });
+        
+        $("#otpModalInput").off("keydown").on("keydown", function (e) {
+          if (e.key === "Enter") {
+            $("#otpModalSubmit").click();
+          }
+        });
+        return;
       } else {
         const errorCode = data.errorCode || data.ErrorCode;
         const errorMessage = data.message || window.i18next.t("googleLoginFailed");
@@ -143,49 +239,11 @@ window.addEventListener("DOMContentLoaded", function () {
 
 if (document.getElementById("login-form")) {
   const loginForm = document.getElementById("login-form");
-  let otpStep = 1;
-  let lastLoginPayload = null;
-  let otpModal = null;
-  let otpInputElem = null;
-  function updateOtpModalI18n() {
-    const modal = document.getElementById("otpModal");
-    if (!modal) return;
-    $("#otpModalLabel").text(window.i18next.t("twoFactorAuth"));
-    $("#otpModalInput").attr("placeholder", window.i18next.t("enterOtpCode"));
-    $("#otpModal .modal-body .mb-2").text(window.i18next.t("enterOtpCode"));
-    $("#otpModalSubmit").text(window.i18next.t("verifyOtp"));
-    $("#otpModalError").text("");
-    $("#otpModal .btn-close").attr("aria-label", window.i18next.t("close"));
-  }
+  
   if (window.i18next) {
     window.i18next.on("languageChanged", function () {
       updateOtpModalI18n();
     });
-  }
-  function ensureOtpModal() {
-    if (document.getElementById("otpModal")) return;
-    const modalHtml = `
-      <div class="modal fade" id="otpModal" tabindex="-1" aria-labelledby="otpModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-sm modal-dialog-centered">
-          <div class="modal-content p-3">
-            <div class="modal-header py-2">
-              <h5 class="modal-title" id="otpModalLabel">${window.i18next.t("twoFactorAuth")}</h5>
-              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="${window.i18next.t("close")}"></button>
-            </div>
-            <div class="modal-body pt-2 pb-1">
-              <div class="mb-2 small">${window.i18next.t("enterOtpCode")}</div>
-              <input type="text" class="form-control form-control-sm mb-2 text-center" id="otpModalInput" maxlength="8" autocomplete="one-time-code" placeholder="${window.i18next.t("enterOtpCode")}" style="font-size:1.1em;letter-spacing:2px;" />
-              <div class="text-danger small" id="otpModalError"></div>
-            </div>
-            <div class="modal-footer pt-1 pb-2 border-0">
-              <button type="button" class="btn btn-primary btn-sm w-100" id="otpModalSubmit">${window.i18next.t("verifyOtp")}</button>
-            </div>
-          </div>
-        </div>
-      </div>`;
-    $("body").append(modalHtml);
-    otpModal = new bootstrap.Modal(document.getElementById("otpModal"));
-    updateOtpModalI18n();
   }
   loginForm.addEventListener("submit", async function (e) {
     e.preventDefault();
@@ -210,7 +268,7 @@ if (document.getElementById("login-form")) {
       const language = getCurrentLanguage();
       let payload = { email, password, language };
       if (otpStep === 2 && lastLoginPayload && otpInputElem) {
-        payload = { ...lastLoginPayload, otpCode: otpInputElem.value.trim() };
+        payload = { ...lastLoginPayload, OtpCode: otpInputElem.value.trim() };
       }
       const res = await fetch(`${API_BASE_URL}/Auth/login`, {
         method: "POST",
@@ -244,7 +302,7 @@ if (document.getElementById("login-form")) {
             document.getElementById("otpModalError").textContent = window.i18next.t("otpRequired");
             return;
           }
-          const otpPayload = { ...lastLoginPayload, otpCode: otpVal };
+          const otpPayload = { ...lastLoginPayload, OtpCode: otpVal };
           const res2 = await fetch(`${API_BASE_URL}/Auth/login`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },

@@ -118,8 +118,37 @@ document.addEventListener("DOMContentLoaded", async function () {
         $("#edit-address").val(u.address || "");
         $("#edit-bio").val(u.bio || "");
         if (u.profilePicture) {
-          $("#edit-profilePicture-preview").attr("src", u.profilePicture);
-          $("#edit-profilePicture-container").show();
+          const img = new Image();
+          img.onload = function() {
+            $("#edit-profilePicture-preview").attr("src", u.profilePicture);
+            $("#edit-profilePicture-container").show();
+          };
+          img.onerror = function() {
+            if (typeof window.generateLetterAvatarFromUser === "function") {
+              $("#edit-profilePicture-preview").attr(
+                "src",
+                window.generateLetterAvatarFromUser(u),
+              );
+              $("#edit-profilePicture-container").show();
+            } else {
+              $("#edit-profilePicture-container").hide();
+            }
+          };
+          img.src = u.profilePicture;
+          
+          setTimeout(() => {
+            if (img.complete === false || img.naturalWidth === 0) {
+              if (typeof window.generateLetterAvatarFromUser === "function") {
+                $("#edit-profilePicture-preview").attr(
+                  "src",
+                  window.generateLetterAvatarFromUser(u),
+                );
+                $("#edit-profilePicture-container").show();
+              } else {
+                $("#edit-profilePicture-container").hide();
+              }
+            }
+          }, 2000); 
         } else {
           if (typeof window.generateLetterAvatarFromUser === "function") {
             $("#edit-profilePicture-preview").attr(
