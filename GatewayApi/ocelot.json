@@ -51,6 +51,18 @@
       "AuthenticationOptions": {
         "AuthenticationProviderKey": "Bearer"
       }
+    },
+    {
+      "DownstreamPathTemplate": "/api/Email/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        { "Host": "email-service", "Port": 80 }
+      ],
+      "UpstreamPathTemplate": "/api/Email/{everything}",
+      "UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE", "HEAD" ],
+      "AuthenticationOptions": {
+        "AuthenticationProviderKey": "Bearer"
+      }
     }
   ],
   "GlobalConfiguration": {

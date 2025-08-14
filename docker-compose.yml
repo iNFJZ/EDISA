@@ -1,12 +1,12 @@
 services:
   postgres:
     image: postgres:14
-    container_name: auth-postgres
+    container_name: edisa
     restart: always
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_DB: auth_db
+      POSTGRES_DB: postgres
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: 123456
     volumes:
@@ -131,9 +131,13 @@ services:
     platform: linux/amd64
     container_name: email-service
     working_dir: /app/EmailService
+    ports:
+      - "5007:80"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=email_db;Username=postgres;Password=123456
     depends_on:
+      - postgres
       - rabbitmq
     networks:
       - microservice-network
@@ -152,7 +156,7 @@ services:
       - "5005:80"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - ConnectionStrings__DefaultConnection=Host=auth-postgres;Port=5432;Database=auth_db;Username=postgres;Password=123456
+      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=auth_db;Username=postgres;Password=123456
       - ConnectionStrings__Redis=redis:6379
       - AuthService__Url=http://auth-service:5001
       - RabbitMQ__HostName=rabbitmq
@@ -207,6 +211,26 @@ services:
     networks:
       - microservice-network
     command: dotnet GrpcGreeter.dll
+
+  worker-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    platform: linux/amd64
+    container_name: worker-service
+    working_dir: /app/WorkerService
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - RabbitMQ__HostName=rabbitmq
+      - RabbitMQ__Port=5672
+      - RabbitMQ__UserName=guest
+      - RabbitMQ__Password=guest
+      - RabbitMQ__VirtualHost=/
+    depends_on:
+      - rabbitmq
+    networks:
+      - microservice-network
+    command: dotnet WorkerService.dll
 
   frontend:
     build:

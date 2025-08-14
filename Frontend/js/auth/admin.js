@@ -68,6 +68,13 @@ class AdminAuth {
       e.stopPropagation();
       this.logout();
     });
+    
+    $(document).off("click", "#sidebar-logout-btn");
+    $(document).on("click", "#sidebar-logout-btn", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this.logout();
+    });
   }
 
   async logout() {
@@ -83,7 +90,6 @@ class AdminAuth {
         });
       }
     } catch (error) {
-      // Only log real errors
       console.error("Logout API error:", error);
     }
     localStorage.removeItem("authToken");
@@ -285,8 +291,11 @@ function loadActiveUsersTable() {
             page: Math.floor(d.start / d.length) + 1,
             pageSize: d.length,
             search: d.search.value || null,
-            sortBy: d.columns[d.order0?.column]?.data || null,
-            sortOrder: d.order0 || "asc",
+            sortBy:
+              d.order && d.order.length && d.columns[d.order[0].column]
+                ? d.columns[d.order[0].column].data || null
+                : null,
+            sortOrder: d.order && d.order.length ? d.order[0].dir : "asc",
           };
         },
         dataSrc: function (json) {
@@ -294,7 +303,6 @@ function loadActiveUsersTable() {
 
           if (json.pagination) {
             const totalCount = json.pagination.totalCount;
-            updateUserStatsDashboard();
           }
 
           return json.data;
@@ -318,7 +326,7 @@ function loadActiveUsersTable() {
         { data: "email" },
         { data: "status" },
         { data: "lastLoginAt" },
-        { data: null, defaultContent: "" }, // Actions
+        { data: null, defaultContent: "" },
       ],
       columnDefs: getUserTableColumnDefs(),
       order: [[1, "asc"]],
@@ -330,6 +338,14 @@ function loadActiveUsersTable() {
       },
       initComplete: function () {
         translateUserTableHeaders();
+        if (window.bootstrap && document.querySelectorAll) {
+          const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+          tooltipTriggerList.forEach(function (el) {
+            if (!el._tooltip) {
+              el._tooltip = new bootstrap.Tooltip(el);
+            }
+          });
+        }
       },
     });
     if (window.i18next) {
@@ -362,8 +378,11 @@ function loadAllUsersTable() {
             page: Math.floor(d.start / d.length) + 1,
             pageSize: d.length,
             search: d.search.value || null,
-            sortBy: d.columns[d.order0?.column]?.data || null,
-            sortOrder: d.order0 || "asc",
+            sortBy:
+              d.order && d.order.length && d.columns[d.order[0].column]
+                ? d.columns[d.order[0].column].data || null
+                : null,
+            sortOrder: d.order && d.order.length ? d.order[0].dir : "asc",
           };
         },
         dataSrc: function (json) {
@@ -446,8 +465,11 @@ function loadDeactiveUsersTable() {
             page: Math.floor(d.start / d.length) + 1,
             pageSize: d.length,
             search: d.search.value || null,
-            sortBy: d.columns[d.order0?.column]?.data || null,
-            sortOrder: d.order0 || "asc",
+            sortBy:
+              d.order && d.order.length && d.columns[d.order[0].column]
+                ? d.columns[d.order[0].column].data || null
+                : null,
+            sortOrder: d.order && d.order.length ? d.order[0].dir : "asc",
             status: 4,
             deletedAt: !null,
             includeDeleted: true,
@@ -458,9 +480,7 @@ function loadDeactiveUsersTable() {
 
           if (json.pagination) {
             const totalCount = json.pagination.totalCount;
-            updateUserStatsDashboard();
           }
-
           return json.data;
         },
         dataFilter: function (data) {
@@ -494,6 +514,14 @@ function loadDeactiveUsersTable() {
       },
       initComplete: function () {
         translateUserTableHeaders();
+        if (window.bootstrap && document.querySelectorAll) {
+          const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+          tooltipTriggerList.forEach(function (el) {
+            if (!el._tooltip) {
+              el._tooltip = new bootstrap.Tooltip(el);
+            }
+          });
+        }
       },
     });
     if (window.i18next) {
@@ -549,19 +577,22 @@ function getUserTableColumnDefs(isDeactive) {
     {
       targets: 1, // Username
       render: function (data, type, full) {
-        return full.username || "";
+        const value = full.username || "";
+        return `<span class="cursor-pointer" data-action="view-user">${value}</span>`;
       },
     },
     {
       targets: 2, // Full Name
       render: function (data, type, full) {
-        return full.fullName || "";
+        const value = full.fullName || "";
+        return `<span class=\"cursor-pointer\" data-action=\"view-user\">${value}</span>`;
       },
     },
     {
       targets: 3, // Email
       render: function (data, type, full) {
-        return full.email || "";
+        const value = full.email || "";
+        return `<span class=\"cursor-pointer\" data-action=\"view-user\">${value}</span>`;
       },
     },
     {
@@ -584,7 +615,7 @@ function getUserTableColumnDefs(isDeactive) {
           title: window.i18next.t("unknown"),
           class: "bg-label-secondary",
         };
-        return `<span class="badge ${obj.class}" text-capitalized>${obj.title}</span>`;
+        return `<span class="badge ${obj.class} cursor-pointer" text-capitalized data-action="view-user">${obj.title}</span>`;
       },
     },
     {
@@ -592,7 +623,7 @@ function getUserTableColumnDefs(isDeactive) {
       render: function (data, type, full) {
         if (isDeactive) {
           if (full.deletedAt || full.DeletedAt) {
-            return new Date(full.deletedAt || full.DeletedAt).toLocaleString(
+            const ts = new Date(full.deletedAt || full.DeletedAt).toLocaleString(
               "en-GB",
               {
                 year: "numeric",
@@ -603,12 +634,13 @@ function getUserTableColumnDefs(isDeactive) {
                 second: "2-digit",
               },
             );
+            return `<span class="cursor-pointer" data-action="view-user">${ts}</span>`;
           } else {
             return '<span class="text-muted">N/A</span>';
           }
         } else {
           if (full.lastLoginAt) {
-            return new Date(full.lastLoginAt).toLocaleString("en-GB", {
+            const ts = new Date(full.lastLoginAt).toLocaleString("en-GB", {
               year: "numeric",
               month: "2-digit",
               day: "2-digit",
@@ -616,6 +648,7 @@ function getUserTableColumnDefs(isDeactive) {
               minute: "2-digit",
               second: "2-digit",
             });
+            return `<span class="cursor-pointer" data-action="view-user">${ts}</span>`;
           } else {
             return '<span class="text-muted">N/A</span>';
           }
@@ -628,14 +661,15 @@ function getUserTableColumnDefs(isDeactive) {
       searchable: false,
       orderable: false,
       render: function (data, type, row, meta) {
-        let html = "";
-        html += `<a href="javascript:;" class="text-body view-user" title="${window.i18next.t("viewUser")}" data-bs-toggle="tooltip"><i class="ti ti-eye text-primary me-1"></i></a>`;
+        let html = `<div class="d-flex gap-2">`;
+        html += `<button class="btn btn-sm btn-icon btn-outline-primary view-user" title="${window.i18next.t("viewUser")}" data-bs-toggle="tooltip" data-bs-placement="top"><i class="ti ti-eye"></i></button>`;
         if (isDeactive) {
-          html += `<a href="javascript:;" class="text-body restore-user" title="${window.i18next.t("restoreUser")}" data-bs-toggle="tooltip"><i class="ti ti-refresh text-success me-1"></i></a>`;
+          html += `<button class="btn btn-sm btn-icon btn-outline-success restore-user" title="${window.i18next.t("restoreUser")}" data-bs-toggle="tooltip" data-bs-placement="top"><i class="ti ti-refresh"></i></button>`;
         } else {
-          html += `<a href="javascript:;" class="text-body edit-user" title="${window.i18next.t("editUser")}" data-bs-toggle="tooltip"><i class="ti ti-edit text-primary me-1"></i></a>`;
-          html += `<a href="javascript:;" class="text-body delete-user" title="${window.i18next.t("deleteUser")}" data-bs-toggle="tooltip"><i class="ti ti-trash text-danger me-1"></i></a>`;
+          html += `<button class="btn btn-sm btn-icon btn-outline-warning edit-user" title="${window.i18next.t("editUser")}" data-bs-toggle="tooltip" data-bs-placement="top"><i class="ti ti-edit"></i></button>`;
+          html += `<button class="btn btn-sm btn-icon btn-outline-danger delete-user" title="${window.i18next.t("deleteUser")}" data-bs-toggle="tooltip" data-bs-placement="top"><i class="ti ti-trash"></i></button>`;
         }
+        html += `</div>`;
         return html;
       },
     },
@@ -2297,7 +2331,6 @@ function openViewUserModal(userId) {
           .text(letter)
           .css({ background: color, color: "#fff", display: "flex" });
         
-        // Thêm onerror handler cho ảnh
         $avatar.attr("src", user.profilePicture)
           .on("error", function() {
             $(this).hide();
@@ -2430,12 +2463,19 @@ $(document)
 $(document)
   .off("click", ".datatables-users tbody tr")
   .on("click", ".datatables-users tbody tr", function (e) {
+    const $target = $(e.target);
     if (
-      $(e.target).closest(
+      $target.closest(
         ".edit-user, .delete-user, .restore-user, .view-user, .btn",
       ).length
-    )
+    ) {
       return;
+    }
+    if ($target.closest('[data-action="view-user"]').length) {
+      const userId = $(this).attr("data-userid");
+      if (userId) openViewUserModal(userId);
+      return;
+    }
     const userId = $(this).attr("data-userid");
     if (userId) openViewUserModal(userId);
   });
@@ -2457,7 +2497,6 @@ function updateUserStatsDashboard() {
   const token = localStorage.getItem("authToken");
   if (!token) return;
 
-  // First, get total count to determine optimal pageSize
   fetch(
     "/api/User?includeDeleted=true&page=1&pageSize=1",
     {
@@ -2477,7 +2516,6 @@ function updateUserStatsDashboard() {
         return;
       }
 
-      // Now fetch all data with the actual total count as pageSize
       return fetch(
         `/api/User?includeDeleted=true&pageSize=${totalCount}`,
         {

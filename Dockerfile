@@ -17,6 +17,7 @@ COPY EmailService/EmailService.csproj EmailService/
 COPY UserService/UserService.csproj UserService/
 COPY NotificationService/NotificationService.csproj NotificationService/
 COPY GrpcGreeter/GrpcGreeter.csproj GrpcGreeter/
+COPY WorkerService/WorkerService.csproj WorkerService/
 COPY Shared/Shared.csproj Shared/
 COPY nuget.config ./
 
@@ -28,7 +29,8 @@ RUN dotnet restore "Shared/Shared.csproj" && \
     dotnet restore "EmailService/EmailService.csproj" && \
     dotnet restore "UserService/UserService.csproj" && \
     dotnet restore "NotificationService/NotificationService.csproj" && \
-    dotnet restore "GrpcGreeter/GrpcGreeter.csproj"
+    dotnet restore "GrpcGreeter/GrpcGreeter.csproj" && \
+    dotnet restore "WorkerService/WorkerService.csproj"
 
 # Copy the rest of the source code
 COPY . .
@@ -40,7 +42,8 @@ RUN dotnet build "AuthService/AuthService.csproj" -c Release --no-restore && \
     dotnet build "EmailService/EmailService.csproj" -c Release --no-restore && \
     dotnet build "UserService/UserService.csproj" -c Release --no-restore && \
     dotnet build "NotificationService/NotificationService.csproj" -c Release --no-restore && \
-    dotnet build "GrpcGreeter/GrpcGreeter.csproj" -c Release --no-restore
+    dotnet build "GrpcGreeter/GrpcGreeter.csproj" -c Release --no-restore && \
+    dotnet build "WorkerService/WorkerService.csproj" -c Release --no-restore
 
 # Publish all projects
 RUN dotnet publish "AuthService/AuthService.csproj" -c Release -o /app/publish/AuthService && \
@@ -49,7 +52,8 @@ RUN dotnet publish "AuthService/AuthService.csproj" -c Release -o /app/publish/A
     dotnet publish "EmailService/EmailService.csproj" -c Release -o /app/publish/EmailService && \
     dotnet publish "UserService/UserService.csproj" -c Release -o /app/publish/UserService && \
     dotnet publish "NotificationService/NotificationService.csproj" -c Release -o /app/publish/NotificationService && \
-    dotnet publish "GrpcGreeter/GrpcGreeter.csproj" -c Release -o /app/publish/GrpcGreeter
+    dotnet publish "GrpcGreeter/GrpcGreeter.csproj" -c Release -o /app/publish/GrpcGreeter && \
+    dotnet publish "WorkerService/WorkerService.csproj" -c Release -o /app/publish/WorkerService
 
 # Final stage: Copy published applications and configuration files
 FROM base AS final
@@ -63,21 +67,19 @@ COPY --from=build /app/publish/EmailService /app/EmailService
 COPY --from=build /app/publish/UserService /app/UserService
 COPY --from=build /app/publish/NotificationService /app/NotificationService
 COPY --from=build /app/publish/GrpcGreeter /app/GrpcGreeter
+COPY --from=build /app/publish/WorkerService /app/WorkerService
 
 # Copy configuration files for AuthService
 COPY AuthService/appsettings.json /app/AuthService/appsettings.json
 COPY AuthService/appsettings.Development.json /app/AuthService/appsettings.Development.json
 
 # Copy configuration files for FileService
-COPY FileService/file.appsettings.json /app/FileService/file.appsettings.json
-COPY FileService/file.appsettings.Development.json /app/FileService/file.appsettings.Development.json
+COPY FileService/appsettings.json /app/FileService/appsettings.json
+COPY FileService/appsettings.Development.json /app/FileService/appsettings.Development.json
 
 # Copy configuration files for EmailService
 COPY EmailService/appsettings.json /app/EmailService/appsettings.json
 COPY EmailService/appsettings.Development.json /app/EmailService/appsettings.Development.json
-
-# Copy EmailService Templates
-COPY EmailService/Templates /app/EmailService/Templates
 
 # Copy configuration files for UserService
 COPY UserService/appsettings.json /app/UserService/appsettings.json
@@ -93,3 +95,7 @@ COPY GatewayApi/ocelot.json /app/GatewayApi/ocelot.json
 # Copy language files for all services
 COPY Shared/LanguageFiles /app/Shared/LanguageFiles
 COPY Shared/LanguageFiles /app/NotificationService/LanguageFiles
+
+# Copy configuration files for WorkerService
+COPY WorkerService/appsettings.json /app/WorkerService/appsettings.json
+COPY WorkerService/appsettings.Development.json /app/WorkerService/appsettings.Development.json

@@ -1,8 +1,82 @@
+function getLocalizedText(key) {
+    if (window.i18next && window.i18next.t) {
+        const translated = window.i18next.t(key);
+        if (translated !== key) {
+            return translated;
+        }
+    }
+    
+    const fallbackTexts = {
+        'unknown': 'Unknown',
+        'failedToFetchFileList': 'Failed to fetch file list',
+        'failedToLoadFiles': 'Failed to load files',
+        'noDataFound': 'No data found',
+        'preview': 'Preview',
+        'delete': 'Delete',
+        'failedToDeleteFile': 'Failed to delete file',
+        'fileDeletedSuccessfully': 'File deleted successfully'
+    };
+
+    return fallbackTexts[key] || key;
+}
+
 function getFileExtension(filename) {
-  if (!filename) return "Unknown";
+  if (!filename) return getLocalizedText('unknown');
   const ext = filename.split(".").pop();
-  if (!ext || ext === filename) return "Unknown";
+  if (!ext || ext === filename) return getLocalizedText('unknown');
   return ext.toUpperCase();
+}
+
+function getCurrentLanguage() {
+    const storedLang = localStorage.getItem('language') || localStorage.getItem('i18nextLng');
+    if (storedLang) {
+        return storedLang;
+    }
+    
+    const htmlLang = document.documentElement.lang;
+    if (htmlLang && ['en', 'vi', 'ja'].includes(htmlLang)) {
+        return htmlLang;
+    }
+    
+    return 'en';
+}
+
+function getDataTablesLanguage() {
+    const currentLang = getCurrentLanguage();
+    
+    if (window.i18next && window.i18next.t) {
+        return {
+            "search": window.i18next.t('search') + ":",
+            "lengthMenu": window.i18next.t('lengthMenu'),
+            "info": window.i18next.t('info'),
+            "infoEmpty": window.i18next.t('infoEmpty'),
+            "infoFiltered": window.i18next.t('infoFiltered'),
+            "paginate": {
+                "first": window.i18next.t('first'),
+                "last": window.i18next.t('last'),
+                "next": window.i18next.t('next'),
+                "previous": window.i18next.t('previous')
+            },
+            "emptyTable": window.i18next.t('emptyTable'),
+            "zeroRecords": window.i18next.t('zeroRecords')
+        };
+    }
+      
+    return {
+        "search": "Search:",
+        "lengthMenu": "Show _MENU_ entries",
+        "info": "Showing _START_ to _END_ of _TOTAL_ entries",
+        "infoEmpty": "Showing 0 to 0 of 0 entries",
+        "infoFiltered": "(filtered from _MAX_ total entries)",
+        "paginate": {
+            "first": "First",
+            "last": "Last",
+            "next": "Next",
+            "previous": "Previous"
+        },
+        "emptyTable": "No data available in table",
+        "zeroRecords": "No matching records found"
+    };
 }
 
 function formatFileSize(size) {
@@ -17,7 +91,7 @@ async function fetchAndRenderFiles() {
             const res = await fetch("/api/File/list", {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
-    if (!res.ok) throw new Error("Failed to fetch file list");
+    if (!res.ok) throw new Error(getLocalizedText('failedToFetchFileList'));
     const data = await res.json();
     window.fileListData = Array.isArray(data) ? data : [];
     window.loadFilesTable();
@@ -25,7 +99,7 @@ async function fetchAndRenderFiles() {
     window.fileListData = [];
     window.loadFilesTable();
     if (typeof toastr !== "undefined")
-      toastr.error(err.message || "Failed to load files");
+      toastr.error(err.message || getLocalizedText('failedToLoadFiles'));
   }
 }
 
@@ -53,59 +127,101 @@ function openDeleteFileModal(file) {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         },
       );
-      if (!res.ok) throw new Error("Failed to delete file");
+      if (!res.ok) throw new Error(getLocalizedText('failedToDeleteFile'));
       if (typeof toastr !== "undefined")
-        toastr.success(window.i18next.t("fileDeletedSuccessfully"));
+        toastr.success(getLocalizedText('fileDeletedSuccessfully'));
       $("#deleteFileModal").modal("hide");
       fetchAndRenderFiles();
     } catch (err) {
       if (typeof toastr !== "undefined")
-        toastr.error(err.message || "Failed to delete file");
+        toastr.error(err.message || getLocalizedText('failedToDeleteFile'));
     }
   };
 }
 
-document.addEventListener("DOMContentLoaded", fetchAndRenderFiles);
+document.addEventListener("DOMContentLoaded", function() {
+    fetchAndRenderFiles();
+    
+    if (window.i18next) {
+        window.i18next.on('languageChanged', function() {
+            const $table = $(".datatables-files");
+            if ($table.length && $.fn.DataTable.isDataTable($table)) {
+                $table.DataTable().destroy();
+                loadFilesTable();
+            }
+        });
+    }
+    
+    window.addEventListener('languageChanged', function(event) {
+        const $table = $(".datatables-files");
+        if ($table.length && $.fn.DataTable.isDataTable($table)) {
+            $table.DataTable().destroy();
+            loadFilesTable();
+        }
+    });
+});
 
 window.loadFilesTable = async function () {
   const files = window.fileListData || [];
   const tbody = document.querySelector(".datatables-files tbody");
   if (!tbody) return;
   if (!files.length) {
-    tbody.innerHTML = `<tr><td colspan="5">No files found</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="5">${getLocalizedText('noDataFound')}</td></tr>`;
     return;
   }
   tbody.innerHTML = files
     .map(
       (file, idx) => `
     <tr class="file-row" data-file-idx="${idx}">
-      <td>${file.fileName || "-"}</td>
-      <td>${typeof file.fileSize === "number" ? formatFileSize(file.fileSize) : "-"}</td>
-      <td>${getFileExtension(file.fileName)}</td>
-      <td>${file.uploadedAt ? new Date(file.uploadedAt).toLocaleString("en-GB") : "-"}</td>
+      <td><span class="cursor-pointer" data-action="preview">${file.fileName || "-"}</span></td>
+      <td><span class="cursor-pointer" data-action="preview">${typeof file.fileSize === "number" ? formatFileSize(file.fileSize) : "-"}</span></td>
+      <td><span class="cursor-pointer" data-action="preview">${getFileExtension(file.fileName)}</span></td>
+      <td><span class="cursor-pointer" data-action="preview">${file.uploadedAt ? new Date(file.uploadedAt).toLocaleString("en-GB") : "-"}</span></td>
       <td>
-        <a href="javascript:;" class="text-body btn-view-file" title="View" data-bs-toggle="tooltip"><i class="ti ti-eye text-primary me-1"></i></a>
-        <a href="javascript:;" class="text-body btn-delete-file" title="Delete" data-bs-toggle="tooltip"><i class="ti ti-trash text-danger me-1"></i></a>
+        <div class="d-flex gap-2">
+          <button class="btn btn-sm btn-icon btn-outline-primary btn-view-file" title="${getLocalizedText('preview')}" data-bs-toggle="tooltip" data-bs-placement="top">
+            <i class="ti ti-eye"></i>
+          </button>
+          <button class="btn btn-sm btn-icon btn-outline-danger btn-delete-file" title="${getLocalizedText('delete')}" data-bs-toggle="tooltip" data-bs-placement="top">
+            <i class="ti ti-trash"></i>
+          </button>
+        </div>
       </td>
     </tr>
   `,
     )
     .join("");
   tbody.querySelectorAll("tr.file-row").forEach((row, idx) => {
-    row.querySelectorAll("td").forEach((cell) => {
-      cell.style.cursor = "pointer";
-      cell.onclick = function (e) {
-        if (e.target.closest(".btn-delete-file")) {
-          openDeleteFileModal(files[idx]);
-          return;
-        }
+    row.querySelectorAll('[data-action="preview"]').forEach((el) => {
+      el.addEventListener("click", function () {
         showFileDetailModal(files[idx]);
-      };
+      });
     });
     row.querySelector(".btn-view-file").onclick = function (e) {
       e.preventDefault();
       showFileDetailModal(files[idx]);
     };
+  });
+
+  const $table = $(".datatables-files");
+  if ($table.length) {
+    if ($.fn.DataTable.isDataTable($table)) {
+      $table.DataTable().destroy();
+    }
+    $table.DataTable({
+      order: [[0, "asc"]],
+      columnDefs: [{ targets: -1, orderable: false, searchable: false }],
+      language: getDataTablesLanguage(),
+    });
+  }
+
+  const tooltipTriggerList = [].slice.call(
+    document.querySelectorAll('[data-bs-toggle="tooltip"]'),
+  );
+  tooltipTriggerList.forEach((tooltipTriggerEl) => {
+    try {
+      new bootstrap.Tooltip(tooltipTriggerEl);
+    } catch (_) {}
   });
 };
 
@@ -145,7 +261,7 @@ window.showFileDetailModal = function (file) {
       });
       
       if (!response.ok) {
-        throw new Error('Download failed');
+        throw new Error(getLocalizedText('downloadFailed'));
       }
       
       const blob = await response.blob();
@@ -158,9 +274,9 @@ window.showFileDetailModal = function (file) {
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
       
-      showNotification("success", i18next.t("fileDownloadedSuccessfully"));
+      showNotification("success", getLocalizedText('fileDownloadedSuccessfully'));
     } catch (error) {
-      showNotification("error", i18next.t("downloadFailed"));
+      showNotification("error", getLocalizedText('downloadFailed'));
     }
   };
 

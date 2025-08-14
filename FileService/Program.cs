@@ -17,17 +17,17 @@ var builder = WebApplication.CreateBuilder(new WebApplicationOptions {
 
 builder.Configuration
     .SetBasePath(Directory.GetCurrentDirectory())
-    .AddJsonFile("file.appsettings.json", optional: false, reloadOnChange: true)
-    .AddJsonFile($"file.appsettings.{builder.Environment.EnvironmentName}.json", optional: true, reloadOnChange: true)
+    .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
+    .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", optional: true, reloadOnChange: true)
     .AddEnvironmentVariables();
 
 builder.Host.ConfigureAppConfiguration((hostingContext, config) =>
 {
     var env = hostingContext.HostingEnvironment;
-    config.AddJsonFile($"file.appsettings.json", optional: false, reloadOnChange: true);
+    config.AddJsonFile($"appsettings.json", optional: false, reloadOnChange: true);
     if (env.IsDevelopment())
     {
-        config.AddJsonFile($"file.appsettings.Development.json", optional: true, reloadOnChange: true);
+        config.AddJsonFile($"appsettings.Development.json", optional: true, reloadOnChange: true);
     }
     config.AddEnvironmentVariables();
 });

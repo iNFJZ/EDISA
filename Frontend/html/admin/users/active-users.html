@@ -137,9 +137,28 @@
                 </li>
               </ul>
             </li>
+            <!-- Email Templates -->
+            <li class="menu-item">
+              <a href="javascript:void(0);" class="menu-link menu-toggle">
+                <i class="menu-icon tf-icons ti ti-mail"></i>
+                <div data-i18n="emailTemplatesTitle">Email Templates</div>
+              </a>
+              <ul class="menu-sub">
+                <li class="menu-item">
+                  <a href="/admin/email-templates/email-templates.html" class="menu-link">
+                    <div data-i18n="emailTemplatesTitle">Email Templates</div>
+                  </a>
+                </li>
+                <li class="menu-item">
+                  <a href="/admin/email-templates/upload-email-template.html" class="menu-link">
+                    <div data-i18n="uploadEmailTemplate">Upload Email Template</div>
+                  </a>
+                </li>
+              </ul>
+            </li>
             <!-- Logout luôn ở cuối -->
             <li class="menu-item" style="margin-top:auto;">
-              <a href="javascript:void(0);" class="menu-link" id="logout-btn">
+              <a href="javascript:void(0);" class="menu-link" id="sidebar-logout-btn">
                 <i class="menu-icon tf-icons ti ti-logout"></i>
                 <div data-i18n="logOut">Log Out</div>
               </a>
@@ -394,6 +413,11 @@
                   </div> -->
                 </div>
                 <div class="card-datatable table-responsive">
+                    <div class="alert alert-info alert-dismissible fade show mb-3" role="alert">
+                      <i class="ti ti-info-circle me-2"></i>
+                      <strong data-i18n="tip">Tip:</strong> <span data-i18n="clickRowForDetails">Click on any row to view user details and quick actions</span>
+                      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
                   <table class="datatables-users table border-top">
                     <thead>
                       <tr>
@@ -401,7 +425,6 @@
                         <th data-i18n="username">Username</th>
                         <th data-i18n="fullName">Full Name</th>
                         <th data-i18n="email">Email</th>
-                        <!-- <th data-i18n="phone">Phone</th> -->
                         <th data-i18n="status">Status</th>
                         <th data-i18n="lastLoginAt">Last Login At</th>
                         <th data-i18n="actions">Actions</th>
@@ -773,6 +796,10 @@
                     <div class="mb-3">
                       <label class="form-label fw-semibold text-muted" data-i18n="lastLoginAt">Last Login</label>
                       <p class="mb-0 user-lastlogin"></p>
+                    </div>
+                    <div class="mb-3">
+                      <label class="form-label fw-semibold text-muted" data-i18n="createdAt">Created At</label>
+                      <p class="mb-0 user-createdat"></p>
                     </div>
                   </div>
                   <div class="col-md-6">

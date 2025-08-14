@@ -1,17 +1,19 @@
 using System.Text;
-using Newtonsoft.Json;
+using System.Text.Json;
+using EmailService.Repositories;
+using EmailService.Models;
 
 namespace EmailService.Services
 {
     public class EmailTemplateService : IEmailTemplateService
     {
-        private readonly string _templatePath;
+        private readonly IEmailTemplateRepository _templateRepository;
         private readonly IConfiguration _config;
         private readonly Dictionary<string, Dictionary<string, object>> _langFiles;
 
-        public EmailTemplateService(IConfiguration config)
+        public EmailTemplateService(IEmailTemplateRepository templateRepository, IConfiguration config)
         {
-            _templatePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Templates");
+            _templateRepository = templateRepository;
             _config = config;
             _langFiles = LoadLangFiles();
         }
@@ -31,7 +33,7 @@ namespace EmailService.Services
                     try
                     {
                         var json = File.ReadAllText(langFile, Encoding.UTF8);
-                        var langData = JsonConvert.DeserializeObject<Dictionary<string, object>>(json);
+                        var langData = JsonSerializer.Deserialize<Dictionary<string, object>>(json);
                         langFiles[lang] = langData;
                     }
                     catch (Exception ex)
@@ -43,19 +45,30 @@ namespace EmailService.Services
             return langFiles;
         }
 
-        public string LoadTemplate(string templateName, string lang = null)
+        public async Task<string> LoadTemplateAsync(string templateName, string lang = null)
         {
-            string templateFile = templateName + (string.IsNullOrEmpty(lang) || lang == "en" ? "" : "." + lang) + ".html";
-            var templatePath = Path.Combine(_templatePath, templateFile);
-            if (!File.Exists(templatePath))
+            lang = string.IsNullOrEmpty(lang) ? "en" : lang;
+            
+            var template = await _templateRepository.GetByNameAndLanguageAsync(templateName, lang);
+            if (template == null)
             {
-                templatePath = Path.Combine(_templatePath, templateName + ".html");
-                if (!File.Exists(templatePath))
+                if (lang != "en")
                 {
-                    throw new FileNotFoundException($"Template {templateName} not found at {templatePath}");
+                    template = await _templateRepository.GetByNameAndLanguageAsync(templateName, "en");
+                }
+                
+                if (template == null)
+                {
+                    throw new InvalidOperationException($"Template {templateName} not found for language {lang}");
                 }
             }
-            return File.ReadAllText(templatePath, Encoding.UTF8);
+            
+            return template.Body;
+        }
+
+        public string LoadTemplate(string templateName, string lang = null)
+        {
+            return LoadTemplateAsync(templateName, lang).GetAwaiter().GetResult();
         }
 
         public string ReplacePlaceholders(string template, Dictionary<string, string> placeholders)
@@ -70,9 +83,9 @@ namespace EmailService.Services
             return result;
         }
 
-        public string GenerateVerifyEmailContent(string username, string verifyLink, string lang = null)
+        public async Task<string> GenerateVerifyEmailContentAsync(string username, string verifyLink, string lang = null)
         {
-            var template = LoadTemplate("verify-email", lang);
+            var template = await LoadTemplateAsync("verify-email", lang);
             var placeholders = new Dictionary<string, string>
             {
                 { "Username", username },
@@ -81,11 +94,17 @@ namespace EmailService.Services
             return ReplacePlaceholders(template, placeholders);
         }
 
-        public string GenerateResetPasswordContent(string username, string email, string userId, string ipAddress, string resetLink, int expiryMinutes, string lang = null)
+        public string GenerateVerifyEmailContent(string username, string verifyLink, string lang = null)
         {
-            var template = LoadTemplate("reset-password", lang);
+            return GenerateVerifyEmailContentAsync(username, verifyLink, lang).GetAwaiter().GetResult();
+        }
+
+        public async Task<string> GenerateResetPasswordContentAsync(string username, string email, string userId, string ipAddress, string resetLink, int expiryMinutes, string lang = null)
+        {
+            var template = await LoadTemplateAsync("reset-password", lang);
             var placeholders = new Dictionary<string, string>
             {
+                { "Username", username },
                 { "Username", username },
                 { "Email", email },
                 { "UserId", userId },
@@ -96,9 +115,14 @@ namespace EmailService.Services
             return ReplacePlaceholders(template, placeholders);
         }
 
-        public string GenerateDeactivateAccountContent(string username, string lang = null)
+        public string GenerateResetPasswordContent(string username, string email, string userId, string ipAddress, string resetLink, int expiryMinutes, string lang = null)
         {
-            var template = LoadTemplate("deactivate-account", lang);
+            return GenerateResetPasswordContentAsync(username, email, userId, ipAddress, resetLink, expiryMinutes, lang).GetAwaiter().GetResult();
+        }
+
+        public async Task<string> GenerateDeactivateAccountContentAsync(string username, string lang = null)
+        {
+            var template = await LoadTemplateAsync("deactivate-account", lang);
             var placeholders = new Dictionary<string, string>
             {
                 { "Username", username }
@@ -106,9 +130,14 @@ namespace EmailService.Services
             return ReplacePlaceholders(template, placeholders);
         }
 
-        public string GenerateRegisterGoogleContent(string username, string resetLink = "", string lang = null)
+        public string GenerateDeactivateAccountContent(string username, string lang = null)
         {
-            var template = LoadTemplate("register-google", lang);
+            return GenerateDeactivateAccountContentAsync(username, lang).GetAwaiter().GetResult();
+        }
+
+        public async Task<string> GenerateRegisterGoogleContentAsync(string username, string resetLink = "", string lang = null)
+        {
+            var template = await LoadTemplateAsync("register-google", lang);
             var placeholders = new Dictionary<string, string>
             {
                 { "Username", username },
@@ -117,9 +146,14 @@ namespace EmailService.Services
             return ReplacePlaceholders(template, placeholders);
         }
 
-        public string GenerateRestoreAccountContent(string username, DateTime restoredAt, string reason, string lang = null)
+        public string GenerateRegisterGoogleContent(string username, string resetLink = "", string lang = null)
         {
-            var template = LoadTemplate("restore-account", lang);
+            return GenerateRegisterGoogleContentAsync(username, resetLink, lang).GetAwaiter().GetResult();
+        }
+
+        public async Task<string> GenerateRestoreAccountContentAsync(string username, DateTime restoredAt, string reason, string lang = null)
+        {
+            var template = await LoadTemplateAsync("restore-account", lang);
             string localizedReason = reason;
             if (reason == "Account restored by administrator")
             {
@@ -146,30 +180,86 @@ namespace EmailService.Services
             return ReplacePlaceholders(template, placeholders);
         }
 
+        public string GenerateRestoreAccountContent(string username, DateTime restoredAt, string reason, string lang = null)
+        {
+            return GenerateRestoreAccountContentAsync(username, restoredAt, reason, lang).GetAwaiter().GetResult();
+        }
+
         public string GetSubject(string type, string lang = null)
         {
             lang = string.IsNullOrEmpty(lang) ? "en" : lang;
             if (_langFiles.TryGetValue(lang, out var langData))
             {
-                if (langData.TryGetValue("emailSubjects", out var emailSubjectsObj) && emailSubjectsObj is Newtonsoft.Json.Linq.JObject emailSubjects)
+                if (langData.TryGetValue("emailSubjects", out var emailSubjectsObj) && emailSubjectsObj is JsonElement emailSubjects)
                 {
-                    if (emailSubjects.TryGetValue(type, out var subject))
+                    if (emailSubjects.TryGetProperty(type, out var subject))
                     {
-                        return subject.ToString();
+                        return subject.GetString() ?? type;
                     }
                 }
             }
             if (lang != "en" && _langFiles.TryGetValue("en", out var enLangData))
             {
-                if (enLangData.TryGetValue("emailSubjects", out var enEmailSubjectsObj) && enEmailSubjectsObj is Newtonsoft.Json.Linq.JObject enEmailSubjects)
+                if (enLangData.TryGetValue("emailSubjects", out var enEmailSubjectsObj) && enEmailSubjectsObj is JsonElement enEmailSubjects)
                 {
-                    if (enEmailSubjects.TryGetValue(type, out var subject))
+                    if (enEmailSubjects.TryGetProperty(type, out var subject))
                     {
-                        return subject.ToString();
+                        return subject.GetString() ?? type;
                     }
                 }
             }
             return type;
+        }
+
+        // CRUD Operations
+        public async Task<IEnumerable<EmailTemplate>> GetAllTemplatesAsync()
+        {
+            return await _templateRepository.GetAllAsync();
+        }
+
+        public async Task<EmailTemplate?> GetTemplateByIdAsync(int id)
+        {
+            return await _templateRepository.GetByIdAsync(id);
+        }
+
+        public async Task<EmailTemplate?> GetTemplateByNameAndLanguageAsync(string name, string language)
+        {
+            return await _templateRepository.GetByNameAndLanguageAsync(name, language);
+        }
+
+        public async Task<IEnumerable<EmailTemplate>> GetTemplatesByLanguageAsync(string language)
+        {
+            return await _templateRepository.GetByLanguageAsync(language);
+        }
+
+        public async Task<EmailTemplate> CreateTemplateAsync(EmailTemplate template)
+        {
+            template.CreatedAt = DateTime.UtcNow;
+            return await _templateRepository.CreateAsync(template);
+        }
+
+        public async Task<EmailTemplate> UpdateTemplateAsync(EmailTemplate template)
+        {
+            template.UpdatedAt = DateTime.UtcNow;
+            return await _templateRepository.UpdateAsync(template);
+        }
+
+        public async Task DeleteTemplateAsync(int id)
+        {
+            var result = await _templateRepository.DeleteAsync(id);
+            if (!result)
+            {
+                throw new InvalidOperationException($"Template with ID {id} not found or could not be deleted");
+            }
+        }
+
+        public async Task RestoreTemplateAsync(int id)
+        {
+            var result = await _templateRepository.RestoreAsync(id);
+            if (!result)
+            {
+                throw new InvalidOperationException($"Template with ID {id} not found or could not be restored");
+            }
         }
     }
 } 
