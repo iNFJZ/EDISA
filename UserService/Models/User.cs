@@ -1,7 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
 namespace UserService.Models;
-
 public class User
 {
     [Key]
@@ -18,6 +17,11 @@ public class User
     [EmailAddress]
     [Display(Name = "Email Address")]
     public string Email { get; set; } = string.Empty;
+
+    [StringLength(100, MinimumLength = 6)]
+    [DataType(DataType.Password)]
+    [Display(Name = "Password")]
+    public string? PasswordHash { get; set; }
 
     [StringLength(100)]
     [RegularExpression(@"^[a-zA-ZÀ-ỹ\s]*$", ErrorMessage = "Full name can only contain letters, spaces, and Vietnamese characters, no numbers or special characters")]
@@ -48,7 +52,6 @@ public class User
     [Display(Name = "Google ID")]
     public string? GoogleId { get; set; }
 
-    [StringLength(200000)]
     [Display(Name = "Profile Picture")]
     public string? ProfilePicture { get; set; }
 
@@ -62,6 +65,7 @@ public class User
 
     public bool IsDeleted => DeletedAt.HasValue;
 
+    public string? TwoFactorSecret { get; set; }
     public bool TwoFactorEnabled { get; set; } = false;
 }
 
@@ -71,4 +75,4 @@ public enum UserStatus
     Inactive = 2,
     Suspended = 3,
     Banned = 4
-} 
+}

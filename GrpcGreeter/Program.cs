@@ -1,14 +1,10 @@
 using GrpcGreeter.Services;
-using FileService.Services;
-using FileService.Models;
 using Grpc.AspNetCore.Server;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 builder.Services.AddGrpc();
-builder.Services.Configure<FileService.Models.MinioOptions>(builder.Configuration.GetSection("Minio"));
-builder.Services.AddScoped<IFileService, FileService.Services.MinioFileService>();
 builder.Services.AddGrpcReflection();
 builder.Services.AddGrpcClient<GrpcGreeter.AuthService.AuthServiceClient>(o =>
 {

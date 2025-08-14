@@ -57,7 +57,7 @@ namespace Shared.LanguageService
 
                     _isInitialized = true;
                 }
-                catch (Exception ex)
+                catch
                 {
                     foreach (var lang in new[] { "en", "vi", "ja" })
                     {
@@ -78,16 +78,16 @@ namespace Shared.LanguageService
 
             if (!_languageData[language].ContainsKey(key))
             {
-                            if (!_languageData["en"].ContainsKey(key))
-            {
-                return key;
-            }
+                if (!_languageData["en"].ContainsKey(key))
+                {
+                    return key;
+                }
                 
-                var text = _languageData["en"][key].ToString();
+                var text = _languageData["en"][key]?.ToString() ?? key;
                 return args.Length > 0 ? string.Format(text, args) : text;
             }
 
-            var localizedText = _languageData[language][key].ToString();
+            var localizedText = _languageData[language][key]?.ToString() ?? key;
             if (args.Length > 0)
             {
                 try
@@ -96,7 +96,7 @@ namespace Shared.LanguageService
                 }
                 catch
                 {
-                    return localizedText.Replace("{0}", args[0].ToString());
+                    return localizedText.Replace("{0}", args[0]?.ToString() ?? string.Empty);
                 }
             }
             return localizedText;
