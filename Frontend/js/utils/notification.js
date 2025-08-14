@@ -75,6 +75,23 @@ window.showToastr = function (message, type = "success", options = {}) {
   }
 };
 
+// Helper functions for common notification types
+window.showSuccessNotification = function(message, options = {}) {
+  return window.showToastr(message, "success", options);
+};
+
+window.showErrorNotification = function(message, options = {}) {
+  return window.showToastr(message, "error", options);
+};
+
+window.showInfoNotification = function(message, options = {}) {
+  return window.showToastr(message, "info", options);
+};
+
+window.showWarningNotification = function(message, options = {}) {
+  return window.showToastr(message, "warning", options);
+};
+
 document.addEventListener("DOMContentLoaded", function () {
   if (window.i18next && typeof window.i18next.on === "function") {
     window.i18next.on("languageChanged", function () {

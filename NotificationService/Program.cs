@@ -7,6 +7,7 @@ using NotificationService.Hubs;
 using NotificationService.Mappings;
 using NotificationService.Services;
 using Shared.LanguageService;
+using Shared.Extensions;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -116,6 +117,9 @@ builder.Services.AddAuthorization();
 
 // Add Services
 builder.Services.AddScoped<NotificationService.Services.INotificationService, NotificationService.Services.NotificationService>();
+
+// Add Logging Service
+builder.Services.AddLoggingService();
 
 var app = builder.Build();
 

@@ -3,6 +3,7 @@ using EmailService.Repositories;
 using EmailService.Services;
 using EmailService.Mappings;
 using Microsoft.EntityFrameworkCore;
+using Shared.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -43,6 +44,9 @@ builder.Services.AddScoped<IEmailTemplateRepository, EmailTemplateRepository>();
 
 // Services
 builder.Services.AddScoped<IEmailTemplateService, EmailTemplateService>();
+
+// Add Logging Service
+builder.Services.AddLoggingService();
 
 var app = builder.Build();
 

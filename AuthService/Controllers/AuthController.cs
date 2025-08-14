@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 using AuthService.Exceptions;
+using Shared.Services;
 
 namespace AuthService.Controllers
 {
@@ -15,47 +16,71 @@ namespace AuthService.Controllers
         private readonly IAuthService _auth;
         private readonly IGoogleAuthService _googleAuth;
         private readonly IConfiguration _config;
+        private readonly ILoggingService _loggingService;
 
-        public AuthController(IAuthService auth, IGoogleAuthService googleAuth, IConfiguration config)
+        public AuthController(IAuthService auth, IGoogleAuthService googleAuth, IConfiguration config, ILoggingService loggingService)
         {
             _auth = auth;
             _googleAuth = googleAuth;
             _config = config;
+            _loggingService = loggingService;
         }
 
         [HttpPost("register")]
         public async Task<IActionResult> Register([FromBody] RegisterWithAcceptDto dto)
         {
-            var (token, username, suggestedUsername, errorCode, message) = await _auth.RegisterAsync(dto, dto.AcceptSuggestedUsername);
-            if (!string.IsNullOrEmpty(errorCode))
+            try
             {
-                return BadRequest(new { errorCode, suggestedUsername, message });
+                _loggingService.Information("User registration attempt for email: {Email}", dto.Email);
+                
+                var (token, username, suggestedUsername, errorCode, message) = await _auth.RegisterAsync(dto, dto.AcceptSuggestedUsername);
+                if (!string.IsNullOrEmpty(errorCode))
+                {
+                    _loggingService.Warning("User registration failed for email: {Email}, Error: {ErrorCode}", dto.Email, errorCode);
+                    return BadRequest(new { errorCode, suggestedUsername, message });
+                }
+                
+                _loggingService.Information("User registered successfully: {Username}, Email: {Email}", username, dto.Email);
+                return Ok(new { token, username });
             }
-            return Ok(new { token, username });
+            catch (Exception ex)
+            {
+                _loggingService.Error("Unexpected error during user registration for email: {Email}", ex, dto.Email);
+                return StatusCode(500, new { message = "Internal server error during registration" });
+            }
         }
 
         [HttpPost("login")]
         public async Task<IActionResult> Login(LoginDto dto)
         {
-            if (!ModelState.IsValid)
-            {
-                var errors = ModelState.Values
-                    .SelectMany(v => v.Errors)
-                    .Select(e => e.ErrorMessage)
-                    .ToList();
-                return BadRequest(new { success = false, message = "Validation failed", errors });
-            }
             try
             {
+                if (!ModelState.IsValid)
+                {
+                    var errors = ModelState.Values
+                        .SelectMany(v => v.Errors)
+                        .Select(e => e.ErrorMessage)
+                        .ToList();
+                    
+                    _loggingService.Warning("Login validation failed for email: {Email}", dto.Email);
+                    return BadRequest(new { success = false, message = "Validation failed", errors });
+                }
+
+                _loggingService.Information("Login attempt for email: {Email}", dto.Email);
+                
                 var result = await _auth.LoginAsync(dto);
                 if (result.Require2FA)
                 {
+                    _loggingService.Information("2FA required for user: {Email}", dto.Email);
                     return Ok(new { success = false, require2FA = true, userId = result.UserId, message = result.Message });
                 }
+                
+                _loggingService.Information("User logged in successfully: {Email}", dto.Email);
                 return Ok(new { success = true, token = result.Token, message = result.Message, redirectUrl = $"{_config["Frontend:BaseUrl"]}/admin/index.html" });
             }
             catch (Exception ex)
             {
+                _loggingService.Error("Login failed for email: {Email}", ex, dto.Email);
                 return BadRequest(new { success = false, message = ex.Message });
             }
         }
@@ -65,23 +90,31 @@ namespace AuthService.Controllers
         {
             if (dto == null || string.IsNullOrEmpty(dto.Code) || string.IsNullOrEmpty(dto.RedirectUri))
             {
+                _loggingService.Warning("Google login failed: Invalid request data");
                 return BadRequest(new { message = "Code and RedirectUri are required" });
             }
             try
             {
+                _loggingService.Information("Google login attempt with code: {Code}", dto.Code);
+                
                 var result = await _googleAuth.LoginWithGoogleAsync(dto);
                 if (result.require2FA)
                 {
+                    _loggingService.Information("Google login requires 2FA for user: {UserId}", result.userId);
                     return Ok(new { success = false, require2FA = true, userId = result.userId, message = result.message });
                 }
+                
+                _loggingService.Information("Google login successful for user: {UserId}", result.userId);
                 return Ok(new { success = true, token = result.token, message = result.message, redirectUrl = $"{_config["Frontend:BaseUrl"]}/admin/index.html" });
             }
             catch (Exceptions.InvalidGoogleTokenException ex)
             {
+                _loggingService.Warning("Google login failed: Invalid token - {Message}", ex.Message);
                 return BadRequest(new { message = ex.Message });
             }
             catch (Exception ex)
             {
+                _loggingService.Error("Google login failed with unexpected error", ex);
                 return StatusCode(500, new { message = "Internal server error" });
             }
         }
@@ -90,28 +123,61 @@ namespace AuthService.Controllers
         [HttpPost("logout")]
         public async Task<IActionResult> Logout()
         {
-            var token = Request.Headers["Authorization"].ToString().Replace("Bearer ", "");
-            var result = await _auth.LogoutAsync(token);
-            
-            if (result)
-                return Ok(new { message = "Logged out successfully" });
-            else
-                return BadRequest(new { message = "Invalid token" });
+            try
+            {
+                var token = Request.Headers["Authorization"].ToString().Replace("Bearer ", "");
+                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+                var userId = userIdClaim?.Value ?? "Unknown";
+                
+                _loggingService.Information("Logout attempt for user: {UserId}", userId);
+                
+                var result = await _auth.LogoutAsync(token);
+                
+                if (result)
+                {
+                    _loggingService.Information("User logged out successfully: {UserId}", userId);
+                    return Ok(new { message = "Logged out successfully" });
+                }
+                else
+                {
+                    _loggingService.Warning("Logout failed: Invalid token for user: {UserId}", userId);
+                    return BadRequest(new { message = "Invalid token" });
+                }
+            }
+            catch (Exception ex)
+            {
+                _loggingService.Error("Logout failed with unexpected error", ex);
+                return StatusCode(500, new { message = "Internal server error during logout" });
+            }
         }
 
         [HttpPost("validate")]
         public async Task<IActionResult> ValidateToken([FromBody] ValidateTokenRequest request)
         {
-            if (request == null)
+            try
             {
-                return BadRequest(new { message = "Request body is required" });
+                if (request == null)
+                {
+                    _loggingService.Warning("Token validation failed: Request body is null");
+                    return BadRequest(new { message = "Request body is required" });
+                }
+                if (string.IsNullOrEmpty(request.Token))
+                {
+                    _loggingService.Warning("Token validation failed: Token is empty");
+                    return BadRequest(new { message = "Token is required" });
+                }
+                
+                _loggingService.Debug("Token validation attempt for token: {Token}", request.Token);
+                var isValid = await _auth.ValidateTokenAsync(request.Token);
+                
+                _loggingService.Debug("Token validation result: {IsValid}", isValid);
+                return Ok(new { isValid = isValid });
             }
-            if (string.IsNullOrEmpty(request.Token))
+            catch (Exception ex)
             {
-                return BadRequest(new { message = "Token is required" });
+                _loggingService.Error("Token validation failed with unexpected error", ex);
+                return StatusCode(500, new { message = "Internal server error during token validation" });
             }
-            var isValid = await _auth.ValidateTokenAsync(request.Token);
-            return Ok(new { isValid = isValid });
         }
 
         [Authorize]
@@ -390,6 +456,53 @@ namespace AuthService.Controllers
             catch (Exception ex)
             {
                 return StatusCode(500, new { message = "Internal server error" });
+            }
+        }
+
+        [HttpGet("test-logging")]
+        public IActionResult TestLogging()
+        {
+            try
+            {
+                _loggingService.Debug("Debug message test");
+                _loggingService.Information("Information message test");
+                _loggingService.Warning("Warning message test");
+                _loggingService.Error("Error message test", new Exception("Test exception"));
+                
+                return Ok(new { 
+                    message = "Logging test completed", 
+                    timestamp = DateTime.UtcNow,
+                    logs = new[] { "Debug", "Information", "Warning", "Error" }
+                });
+            }
+            catch (Exception ex)
+            {
+                _loggingService.Fatal("Fatal error in test logging", ex);
+                return StatusCode(500, new { message = "Logging test failed", error = ex.Message });
+            }
+        }
+
+        [HttpGet("test-logging-public")]
+        [AllowAnonymous]
+        public IActionResult TestLoggingPublic()
+        {
+            try
+            {
+                _loggingService.Debug("Public Debug message test");
+                _loggingService.Information("Public Information message test");
+                _loggingService.Warning("Public Warning message test");
+                _loggingService.Error("Public Error message test", new Exception("Public Test exception"));
+                
+                return Ok(new { 
+                    message = "Public Logging test completed", 
+                    timestamp = DateTime.UtcNow,
+                    logs = new[] { "Debug", "Information", "Warning", "Error" }
+                });
+            }
+            catch (Exception ex)
+            {
+                _loggingService.Fatal("Public Fatal error in test logging", ex);
+                return StatusCode(500, new { message = "Public Logging test failed", error = ex.Message });
             }
         }
 

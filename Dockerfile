@@ -16,7 +16,6 @@ COPY GatewayApi/GatewayApi.csproj GatewayApi/
 COPY EmailService/EmailService.csproj EmailService/
 COPY UserService/UserService.csproj UserService/
 COPY NotificationService/NotificationService.csproj NotificationService/
-COPY GrpcGreeter/GrpcGreeter.csproj GrpcGreeter/
 COPY WorkerService/WorkerService.csproj WorkerService/
 COPY Shared/Shared.csproj Shared/
 COPY nuget.config ./
@@ -29,7 +28,6 @@ RUN dotnet restore "Shared/Shared.csproj" && \
     dotnet restore "EmailService/EmailService.csproj" && \
     dotnet restore "UserService/UserService.csproj" && \
     dotnet restore "NotificationService/NotificationService.csproj" && \
-    dotnet restore "GrpcGreeter/GrpcGreeter.csproj" && \
     dotnet restore "WorkerService/WorkerService.csproj"
 
 # Copy the rest of the source code
@@ -42,7 +40,6 @@ RUN dotnet build "AuthService/AuthService.csproj" -c Release --no-restore && \
     dotnet build "EmailService/EmailService.csproj" -c Release --no-restore && \
     dotnet build "UserService/UserService.csproj" -c Release --no-restore && \
     dotnet build "NotificationService/NotificationService.csproj" -c Release --no-restore && \
-    dotnet build "GrpcGreeter/GrpcGreeter.csproj" -c Release --no-restore && \
     dotnet build "WorkerService/WorkerService.csproj" -c Release --no-restore
 
 # Publish all projects
@@ -52,12 +49,14 @@ RUN dotnet publish "AuthService/AuthService.csproj" -c Release -o /app/publish/A
     dotnet publish "EmailService/EmailService.csproj" -c Release -o /app/publish/EmailService && \
     dotnet publish "UserService/UserService.csproj" -c Release -o /app/publish/UserService && \
     dotnet publish "NotificationService/NotificationService.csproj" -c Release -o /app/publish/NotificationService && \
-    dotnet publish "GrpcGreeter/GrpcGreeter.csproj" -c Release -o /app/publish/GrpcGreeter && \
     dotnet publish "WorkerService/WorkerService.csproj" -c Release -o /app/publish/WorkerService
 
 # Final stage: Copy published applications and configuration files
 FROM base AS final
 WORKDIR /app
+
+# Create logs directories for all services
+RUN mkdir -p /app/logs /app/AuthService/logs /app/FileService/logs /app/UserService/logs /app/EmailService/logs /app/NotificationService/logs
 
 # Copy published applications
 COPY --from=build /app/publish/AuthService /app/AuthService
@@ -66,7 +65,6 @@ COPY --from=build /app/publish/GatewayApi /app/GatewayApi
 COPY --from=build /app/publish/EmailService /app/EmailService
 COPY --from=build /app/publish/UserService /app/UserService
 COPY --from=build /app/publish/NotificationService /app/NotificationService
-COPY --from=build /app/publish/GrpcGreeter /app/GrpcGreeter
 COPY --from=build /app/publish/WorkerService /app/WorkerService
 
 # Copy configuration files for AuthService
