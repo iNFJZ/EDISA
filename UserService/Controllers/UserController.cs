@@ -4,6 +4,7 @@ using UserService.DTOs;
 using UserService.Services;
 using UserService.Models;
 using BCrypt.Net;
+using Shared.Services;
 
 namespace UserService.Controllers;
 
@@ -13,10 +14,12 @@ namespace UserService.Controllers;
 public class UserController : ControllerBase
 {
     private readonly IUserService _userService;
+    private readonly ILoggingService _loggingService;
 
-    public UserController(IUserService userService)
+    public UserController(IUserService userService, ILoggingService loggingService)
     {
         _userService = userService;
+        _loggingService = loggingService;
     }
 
     /// <summary>
@@ -35,6 +38,8 @@ public class UserController : ControllerBase
     {
         try
         {
+            _loggingService.Information("GetUsers called with page: {Page}, pageSize: {PageSize}, search: {Search}", page, pageSize, search ?? "none");
+            
             var query = new UserQueryDto
             {
                 Page = page,
@@ -49,6 +54,8 @@ public class UserController : ControllerBase
 
             var (users, totalCount, totalPages) = await _userService.GetUsersAsync(query);
 
+            _loggingService.Information("GetUsers completed successfully. Found {Count} users, {Pages} pages", totalCount, totalPages);
+            
             return Ok(new
             {
                 success = true,
@@ -66,6 +73,7 @@ public class UserController : ControllerBase
         }
         catch (Exception ex)
         {
+            _loggingService.Error("GetUsers failed", ex);
             return StatusCode(500, new { success = false, message = "An error occurred while fetching users", error = ex.Message });
         }
     }
@@ -78,16 +86,21 @@ public class UserController : ControllerBase
     {
         try
         {
+            _loggingService.Information("GetUser called for ID: {UserId}", id);
+            
             var user = await _userService.GetUserByIdAsync(id);
             if (user == null)
             {
+                _loggingService.Warning("User not found for ID: {UserId}", id);
                 return NotFound(new { success = false, message = "User not found" });
             }
 
+            _loggingService.Information("GetUser completed successfully for ID: {UserId}", id);
             return Ok(new { success = true, data = user });
         }
         catch (Exception ex)
         {
+            _loggingService.Error("GetUser failed for ID: {UserId}", ex, id);
             return StatusCode(500, new { success = false, message = "An error occurred while fetching user", error = ex.Message });
         }
     }

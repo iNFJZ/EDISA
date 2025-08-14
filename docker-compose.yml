@@ -38,6 +38,38 @@ services:
     networks:
       - microservice-network
 
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    container_name: elasticsearch
+    restart: always
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - cluster.name=edisa-cluster
+      - node.name=edisa-node
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    networks:
+      - microservice-network
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.11.0
+    container_name: kibana
+    restart: always
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+    depends_on:
+      - elasticsearch
+    networks:
+      - microservice-network
+
   minio:
     image: minio/minio
     container_name: minio
@@ -65,12 +97,16 @@ services:
       - "5003:5003"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:80
       - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=auth_db;Username=postgres;Password=123456
       - ConnectionStrings__Redis=redis:6379
+      - Elasticsearch__Url=http://elasticsearch:9200
+      - Elasticsearch__IndexFormat=edisa-auth-logs-{0:yyyy.MM}
     depends_on:
       - postgres
       - redis
       - rabbitmq
+      - elasticsearch
     networks:
       - microservice-network
     command: dotnet AuthService.dll
@@ -251,6 +287,7 @@ volumes:
   pgdata:
   minio-data:
   redis-data:
+  elasticsearch-data:
 
 networks:
   microservice-network:

@@ -48,98 +48,134 @@ namespace FileService.Controllers
         [Consumes("multipart/form-data")]
         public async Task<IActionResult> Upload([FromForm] UploadFileRequest request)
         {
-            var files = request.Files;
-            if (files == null || files.Count == 0)
-                return BadRequest(_localizer["NoFilesUploaded"]);
-
-            var userEmailClaim = User.FindFirst(ClaimTypes.Email) ?? User.FindFirst("email");
-            var userNameClaim = User.FindFirst(JwtRegisteredClaimNames.Name);
-            var userEmail = userEmailClaim?.Value ?? "";
-            var userName = userNameClaim?.Value ?? "";
-
-            var results = new List<object>();
-            foreach (var file in files)
+            try
             {
-                var (isValid, errorMessage) = _validationService.ValidateFile(file);
-                if (!isValid)
+                var userEmailClaim = User.FindFirst(ClaimTypes.Email) ?? User.FindFirst("email");
+                var userNameClaim = User.FindFirst(JwtRegisteredClaimNames.Name);
+                var userEmail = userEmailClaim?.Value ?? "";
+                var userName = userNameClaim?.Value ?? "";
+                var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "";
+
+                _logger.LogInformation("File upload started by User: {UserId}, Email: {Email}, Files count: {FilesCount}", 
+                    userId, userEmail, request.Files?.Count ?? 0);
+
+                var files = request.Files;
+                if (files == null || files.Count == 0)
                 {
-                    results.Add(new { fileName = file?.FileName ?? "", message = _localizer[errorMessage] });
-                    continue;
+                    _logger.LogWarning("File upload failed: No files provided by User: {UserId}", userId);
+                    return BadRequest(_localizer["NoFilesUploaded"]);
                 }
 
-                try
+                var results = new List<object>();
+                var successCount = 0;
+                var failureCount = 0;
+
+                foreach (var file in files)
                 {
-                    using var stream = file.OpenReadStream();
-                    var description = request.Description ?? "";
-                    await _fileService.UploadFileAsync(file.FileName, stream, file.ContentType, description);
-
-                    _logger.LogInformation("File uploaded successfully: {FileName}", file.FileName);
-                    results.Add(new { fileName = file.FileName, message = _localizer["FileUploadedSuccessfully"] });
-
                     try
                     {
-                        var userLanguageClaim = User.FindFirst("language");
-                        var userLanguage = userLanguageClaim?.Value ?? "en";
-                        
-                        await _emailMessageService.PublishFileEventNotificationAsync(new FileEventEmailNotification
+                        _logger.LogInformation("Processing file upload: {FileName}, Size: {FileSize}, ContentType: {ContentType} for User: {UserId}", 
+                            file.FileName, file.Length, file.ContentType, userId);
+
+                        var (isValid, errorMessage) = _validationService.ValidateFile(file);
+                        if (!isValid)
                         {
-                            To = userEmail,
-                            Username = userName,
-                            FileName = file.FileName,
-                            EventType = "Upload",
-                            EventTime = DateTime.UtcNow,
-                            Language = userLanguage
-                        });
-                        _logger.LogInformation("Email notification sent for file: {FileName}", file.FileName);
-                    }
-                    catch (Exception emailEx)
-                    {
-                        _logger.LogWarning(emailEx, "Failed to send email notification for file: {FileName}. File was uploaded successfully.", file.FileName);
-                    }
+                            _logger.LogWarning("File validation failed: {FileName}, Error: {ErrorMessage}, User: {UserId}", 
+                                file.FileName, errorMessage, userId);
+                            results.Add(new { fileName = file?.FileName ?? "", message = _localizer[errorMessage] });
+                            failureCount++;
+                            continue;
+                        }
 
-                    try
-                    {
-                        var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-                        if (!string.IsNullOrEmpty(userId))
+                        using var stream = file.OpenReadStream();
+                        var description = request.Description ?? "";
+                        await _fileService.UploadFileAsync(file.FileName, stream, file.ContentType, description);
+
+                        _logger.LogInformation("File uploaded successfully: {FileName}, Size: {FileSize}, User: {UserId}", 
+                            file.FileName, file.Length, userId);
+                        results.Add(new { fileName = file.FileName, message = _localizer["FileUploadedSuccessfully"] });
+                        successCount++;
+
+                        // Send email notification
+                        try
                         {
                             var userLanguageClaim = User.FindFirst("language");
                             var userLanguage = userLanguageClaim?.Value ?? "en";
                             
-                            var title = userLanguage switch
+                            await _emailMessageService.PublishFileEventNotificationAsync(new FileEventEmailNotification
                             {
-                                "vi" => "Tải tệp lên thành công",
-                                "ja" => "ファイルのアップロードが完了しました",
-                                _ => "File Uploaded Successfully"
-                            };
-                            
-                            var message = userLanguage switch
+                                To = userEmail,
+                                Username = userName,
+                                FileName = file.FileName,
+                                EventType = "Upload",
+                                EventTime = DateTime.UtcNow,
+                                Language = userLanguage
+                            });
+                            _logger.LogInformation("Email notification sent for file upload: {FileName}, User: {UserId}", file.FileName, userId);
+                        }
+                        catch (Exception emailEx)
+                        {
+                            _logger.LogWarning(emailEx, "Failed to send email notification for file upload: {FileName}, User: {UserId}. File was uploaded successfully.", 
+                                file.FileName, userId);
+                        }
+
+                        // Send real-time notification
+                        try
+                        {
+                            if (!string.IsNullOrEmpty(userId))
                             {
-                                "vi" => $"Tệp '{file.FileName}' của bạn đã được tải lên thành công.",
-                                "ja" => $"ファイル '{file.FileName}' のアップロードが完了しました。",
-                                _ => $"Your file '{file.FileName}' has been uploaded successfully."
-                            };
-                            
-                            await _notificationService.SendNotificationAsync(
-                                userId,
-                                title,
-                                message,
-                                "success",
-                                JsonSerializer.Serialize(new { fileName = file.FileName, eventType = "upload" })
-                            );
+                                var userLanguageClaim = User.FindFirst("language");
+                                var userLanguage = userLanguageClaim?.Value ?? "en";
+                                
+                                var title = userLanguage switch
+                                {
+                                    "vi" => "Tải tệp lên thành công",
+                                    "ja" => "ファイルのアップロードが完了しました",
+                                    _ => "File Uploaded Successfully"
+                                };
+                                
+                                var message = userLanguage switch
+                                {
+                                    "vi" => $"Tệp '{file.FileName}' của bạn đã được tải lên thành công.",
+                                    "ja" => $"ファイル '{file.FileName}' のアップロードが完了しました。",
+                                    _ => $"Your file '{file.FileName}' has been uploaded successfully."
+                                };
+                                
+                                await _notificationService.SendNotificationAsync(
+                                    userId,
+                                    title,
+                                    message,
+                                    "success",
+                                    JsonSerializer.Serialize(new { fileName = file.FileName, eventType = "upload" })
+                                );
+                                _logger.LogInformation("Real-time notification sent for file upload: {FileName}, User: {UserId}", file.FileName, userId);
+                            }
+                        }
+                        catch (Exception notificationEx)
+                        {
+                            _logger.LogWarning(notificationEx, "Failed to send real-time notification for file upload: {FileName}, User: {UserId}. File was uploaded successfully.", 
+                                file.FileName, userId);
                         }
                     }
-                    catch (Exception notificationEx)
+                    catch (Exception ex)
                     {
-                        _logger.LogWarning(notificationEx, "Failed to send real-time notification for file: {FileName}. File was uploaded successfully.", file.FileName);
+                        _logger.LogError(ex, "Error uploading file: {FileName}, User: {UserId}", file?.FileName, userId);
+                        results.Add(new { fileName = file?.FileName, message = _localizer["ErrorUploadingFile"] });
+                        failureCount++;
                     }
                 }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error uploading file: {FileName}", file?.FileName);
-                    results.Add(new { fileName = file?.FileName, message = _localizer["ErrorUploadingFile"] });
-                }
+
+                _logger.LogInformation("File upload batch completed. Success: {SuccessCount}, Failures: {FailureCount}, User: {UserId}", 
+                    successCount, failureCount, userId);
+
+                return Ok(results);
             }
-            return Ok(results);
+            catch (Exception ex)
+            {
+                var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "Unknown";
+                _logger.LogError(ex, "Unexpected error during file upload batch, User: {UserId}", userId);
+                return StatusCode(500, new { message = "An unexpected error occurred during file upload" });
+            }
         }
 
         [HttpGet("download/{fileName}")]

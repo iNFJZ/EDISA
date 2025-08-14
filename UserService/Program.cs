@@ -12,13 +12,33 @@ using StackExchange.Redis;
 using Microsoft.Extensions.Logging;
 using Shared.Services;
 using Shared.LanguageService;
+using Shared.Extensions;
+using Serilog;
+using Serilog.Events;
+
+Log.Logger = new LoggerConfiguration()
+    .MinimumLevel.Information()
+    .WriteTo.Console()
+    .WriteTo.File("logs/edisa-.log", rollingInterval: RollingInterval.Day)
+    .CreateLogger();
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Host.UseSerilog((context, services, configuration) =>
+{
+    configuration
+        .ReadFrom.Configuration(context.Configuration)
+        .ReadFrom.Services(services)
+        .Enrich.FromLogContext()
+        .Enrich.WithMachineName()
+        .Enrich.WithThreadId();
+});
 
 builder.WebHost.ConfigureKestrel(options =>
 {
     options.ListenAnyIP(80);
 });
+
 // Add services to the container.
 builder.Services.AddControllers();
 
@@ -61,6 +81,8 @@ builder.Services.AddScoped<INotificationHelper, NotificationHelper>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<ILanguageService, LanguageServiceImplementation>();
 
+builder.Services.AddLoggingService();
+
 builder.Services.AddAuthentication("Bearer")
     .AddJwtBearer("Bearer", options =>
     {
@@ -92,10 +114,10 @@ builder.Services.AddCors(options =>
 
 builder.Services.AddSwaggerGen(c =>
 {
-    c.SwaggerDoc("v1", new OpenApiInfo { Title = "UserService API", Version = "v1" });
+    c.SwaggerDoc("v1", new OpenApiInfo { Title = "EDISA User API", Version = "v1" });
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
-        Description = "JWT Authorization header using the Bearer scheme. Example: \"Bearer {token}\"",
+        Description = "JWT Authorization header using the Bearer scheme. Example: \"Authorization: Bearer {token}\"",
         Name = "Authorization",
         In = ParameterLocation.Header,
         Type = SecuritySchemeType.Http,
@@ -148,4 +170,16 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-app.Run();
+try
+{
+    Log.Information("Starting UserService...");
+    app.Run();
+}
+catch (Exception ex)
+{
+    Log.Fatal(ex, "UserService terminated unexpectedly");
+}
+finally
+{
+    Log.CloseAndFlush();
+}
