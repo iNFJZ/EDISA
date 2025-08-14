@@ -615,6 +615,11 @@ body {
   font-size: 0.98rem;
 }
 
+/* Cursor helpers */
+.cursor-pointer { cursor: pointer; }
+.cursor-help { cursor: help; }
+.cursor-not-allowed { cursor: not-allowed; }
+
 /* Widget thống kê */
 .stats-bar {
   display: flex;
@@ -1734,6 +1739,36 @@ body {
 /* Notification bell icon */
 .nav-item.dropdown-notifications .nav-link {
     position: relative;
+}
+
+/* Upload Area Styles */
+.upload-area {
+    border: 2px dashed #d1d5db;
+    border-radius: 8px;
+    padding: 3rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background-color: #f9fafb;
+}
+
+.upload-area:hover {
+    border-color: #3b82f6;
+    background-color: #eff6ff;
+}
+
+.upload-area.drag-over {
+    border-color: #3b82f6;
+    background-color: #eff6ff;
+    transform: scale(1.02);
+}
+
+.upload-content {
+    pointer-events: none;
+}
+
+.upload-content button {
+    pointer-events: auto;
 }
 
 

@@ -723,3 +723,13 @@ function showToastrMessage(msg, type = "success") {
     toastr[type](msg);
   }
 }
+
+if (window.i18next) {
+  window.i18next.on('languageChanged', function() {
+    const currentLang = window.i18next.language;
+    document.documentElement.lang = currentLang;
+    try { if (typeof localize === 'function') localize(); } catch (_) {}
+
+    window.dispatchEvent(new CustomEvent('languageChanged', { detail: { language: currentLang } }));
+  });
+}

@@ -1,8 +1,3 @@
-/**
- * Error Handler for Multi-language Support
- * Handles error codes from backend and displays localized messages
- */
-
 class ErrorHandler {
   constructor() {
     this.currentLanguage =

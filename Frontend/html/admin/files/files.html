@@ -1,7 +1,7 @@
 <!doctype html>
 
 <html
-  lang="en"
+  lang=""
   class="light-style layout-navbar-fixed layout-menu-fixed"
   dir="ltr"
   data-theme="theme-default"
@@ -98,6 +98,13 @@
     <!--! Template customizer & Theme config files MUST be included after core stylesheets and helpers.js in the <head> section -->
     <!--? Template customizer: To hide customizer set displayCustomizer value false in config.js.  -->
     <script src="/assets/vendor/js/template-customizer.js"></script>
+    
+    <script>
+      (function() {
+        const storedLang = localStorage.getItem('language') || localStorage.getItem('i18nextLng') || 'en';
+        document.documentElement.lang = storedLang;
+      })();
+    </script>
     <!--? Config:  Mandatory theme config file contain global vars & default theme options, Set your preferred theme option in this file.  -->
     <script src="/assets/js/config.js"></script>
     <!-- CropperJS CSS CDN -->
@@ -197,8 +204,27 @@
                 </li>
               </ul>
             </li>
+            <!-- Email Templates -->
+            <li class="menu-item">
+              <a href="javascript:void(0);" class="menu-link menu-toggle">
+                <i class="menu-icon tf-icons ti ti-mail"></i>
+                <div data-i18n="emailTemplatesTitle">Email Templates</div>
+              </a>
+              <ul class="menu-sub">
+                <li class="menu-item">
+                  <a href="/admin/email-templates/email-templates.html" class="menu-link">
+                    <div data-i18n="emailTemplatesTitle">Email Templates</div>
+                  </a>
+                </li>
+                <li class="menu-item">
+                  <a href="/admin/email-templates/upload-email-template.html" class="menu-link">
+                    <div data-i18n="uploadEmailTemplate">Upload Email Template</div>
+                  </a>
+                </li>
+              </ul>
+            </li>
             <li class="menu-item" style="margin-top: auto">
-              <a href="/auth/login.html" class="menu-link" id="logout-btn">
+              <a href="javascript:void(0);" class="menu-link" id="sidebar-logout-btn">
                 <i class="menu-icon tf-icons ti ti-logout"></i>
                 <div data-i18n="logOut">Đăng xuất</div>
               </a>
@@ -511,13 +537,18 @@
                   </div>
                 </div>
                 <div class="card-datatable table-responsive">
+                  <div class="alert alert-info alert-dismissible fade show mb-3" role="alert">
+                    <i class="ti ti-info-circle me-2"></i>
+                    <strong data-i18n="tip">Tip:</strong> <span data-i18n="clickRowForDetails">Click on any row to view file details and actions</span>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                  </div>
                   <table class="datatables-files table border-top">
                     <thead>
                       <tr>
-                        <th data-i18n="fileName">File Name</th>
-                        <th data-i18n="fileSize">Size</th>
-                        <th data-i18n="fileType">Type</th>
-                        <th data-i18n="createdAt">Created At</th>
+                        <th data-i18n="fileName" class="sorting">File Name</th>
+                        <th data-i18n="fileSize" class="sorting">Size</th>
+                        <th data-i18n="fileType" class="sorting">Type</th>
+                        <th data-i18n="createdAt" class="sorting">Created At</th>
                         <th data-i18n="actions">Actions</th>
                       </tr>
                     </thead>
@@ -896,218 +927,6 @@
             >
               <i class="ti ti-trash me-1"></i>Delete
             </button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Modal Crop Image -->
-    <div
-      class="modal fade"
-      id="cropImageModal"
-      tabindex="-1"
-      aria-labelledby="cropImageModalLabel"
-      aria-hidden="true"
-    >
-      <div class="modal-dialog modal-xl modal-dialog-centered cropper-modal-xl">
-        <div class="modal-content cropper-modal-content">
-          <div class="modal-header border-0 pb-0">
-            <h5
-              class="modal-title fw-bold"
-              id="cropImageModalLabel"
-              data-i18n="editProfilePicture"
-            >
-              <i class="ti ti-crop me-2"></i>Edit Profile Picture
-            </h5>
-            <button
-              type="button"
-              class="btn-close"
-              data-bs-dismiss="modal"
-              aria-label="Close"
-            ></button>
-          </div>
-          <div class="modal-body p-0 cropper-modal-body">
-            <div class="row g-0 h-100">
-              <!-- Left side - Cropper -->
-              <div class="col-lg-8 h-100 cropper-left-panel">
-                <div
-                  class="cropper-container-wrapper h-100 d-flex align-items-center justify-content-center p-4"
-                >
-                  <div class="cropper-container">
-                    <img id="cropper-image" />
-                    <div class="cropper-overlay">
-                      <div class="crop-circle-overlay"></div>
-                    </div>
-                    <!-- Drag & Drop Zone -->
-                    <div class="drag-drop-zone drag-drop-content">
-                      <div class="text-center">
-                        <i class="ti ti-photo-plus drag-drop-icon"></i>
-                        <p
-                          class="mb-2 fw-semibold"
-                          data-i18n="dragDropImageHere"
-                        >
-                          Drag & drop your image here
-                        </p>
-                        <p
-                          class="text-muted small mb-0"
-                          data-i18n="orClickToBrowse"
-                        >
-                          or click to browse
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Right side - Controls & Preview -->
-              <div class="col-lg-4 h-100 cropper-right-panel">
-                <div class="cropper-controls-container">
-                  <!-- Instructions -->
-                  <div class="mb-4">
-                    <h6 class="fw-bold mb-3" data-i18n="howToCrop">
-                      <i class="ti ti-info-circle me-2 text-primary"></i>How to
-                      crop
-                    </h6>
-                    <div class="d-flex flex-column gap-2">
-                      <div class="d-flex align-items-center">
-                        <i class="ti ti-mouse me-2 text-muted"></i>
-                        <span class="small" data-i18n="dragToMove"
-                          >Drag to move the image</span
-                        >
-                      </div>
-                      <div class="d-flex align-items-center">
-                        <i class="ti ti-zoom-in me-2 text-muted"></i>
-                        <span class="small" data-i18n="scrollToZoom"
-                          >Scroll to zoom in/out</span
-                        >
-                      </div>
-                      <div class="d-flex align-items-center">
-                        <i class="ti ti-arrows-move me-2 text-muted"></i>
-                        <span class="small" data-i18n="circleShowsAvatar"
-                          >The circle shows your avatar area</span
-                        >
-                      </div>
-                    </div>
-                  </div>
-
-                  <!-- Zoom Controls -->
-                  <div class="mb-4">
-                    <h6 class="fw-bold mb-3" data-i18n="zoom">Zoom</h6>
-                    <div class="d-flex align-items-center gap-2">
-                      <button
-                        type="button"
-                        class="btn btn-outline-secondary btn-sm"
-                        id="zoom-out-btn"
-                      >
-                        <i class="ti ti-zoom-out"></i>
-                      </button>
-                      <div class="flex-grow-1">
-                        <input
-                          type="range"
-                          class="form-range"
-                          id="zoom-slider"
-                          min="1"
-                          max="3"
-                          step="0.01"
-                          value="1"
-                        />
-                      </div>
-                      <button
-                        type="button"
-                        class="btn btn-outline-secondary btn-sm"
-                        id="zoom-in-btn"
-                      >
-                        <i class="ti ti-zoom-in"></i>
-                      </button>
-                    </div>
-                    <div class="d-flex justify-content-between mt-1">
-                      <small class="text-muted" data-i18n="zoom100">100%</small>
-                      <small
-                        class="text-muted zoom-percentage"
-                        data-i18n="zoomPercentage"
-                        >100%</small
-                      >
-                      <small
-                        id="zoom-max-label"
-                        class="text-muted"
-                        data-i18n="zoom300"
-                        >300%</small
-                      >
-                    </div>
-                  </div>
-
-                  <!-- Rotation Controls -->
-                  <div class="mb-4">
-                    <h6 class="fw-bold mb-3" data-i18n="rotate">Rotate</h6>
-                    <div class="d-flex gap-2">
-                      <button
-                        type="button"
-                        class="btn btn-outline-secondary btn-sm"
-                        id="rotate-left-btn"
-                        data-i18n="rotateLeft"
-                      >
-                        <i class="ti ti-rotate-ccw me-1"></i>Left
-                      </button>
-                      <button
-                        type="button"
-                        class="btn btn-outline-secondary btn-sm"
-                        id="rotate-right-btn"
-                        data-i18n="rotateRight"
-                      >
-                        <i class="ti ti-rotate-cw me-1"></i>Right
-                      </button>
-                      <button
-                        type="button"
-                        class="btn btn-outline-secondary btn-sm"
-                        id="reset-btn"
-                        data-i18n="reset"
-                      >
-                        <i class="ti ti-refresh me-1"></i>Reset
-                      </button>
-                    </div>
-                  </div>
-
-                  <!-- Preview -->
-                  <div class="mb-4">
-                    <h6 class="fw-bold mb-3" data-i18n="preview">Preview</h6>
-                    <div class="text-center">
-                      <div
-                        class="avatar-preview-wrapper avatar-preview-container"
-                      >
-                        <img
-                          id="crop-avatar-preview"
-                          class="crop-avatar-preview"
-                        />
-                        <div class="preview-overlay"></div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <!-- Action Buttons -->
-                  <div class="mt-auto">
-                    <div class="d-grid gap-2">
-                      <button
-                        type="button"
-                        class="btn btn-primary fw-bold"
-                        id="cropImageBtn"
-                        data-i18n="saveProfilePicture"
-                      >
-                        <i class="ti ti-check me-2"></i>Save Profile Picture
-                      </button>
-                      <button
-                        type="button"
-                        class="btn btn-outline-secondary"
-                        data-bs-dismiss="modal"
-                        data-i18n="cancel"
-                      >
-                        <i class="ti ti-x me-2"></i>Cancel
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       </div>

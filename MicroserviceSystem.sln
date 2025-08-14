@@ -20,9 +20,11 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UserService", "UserService\
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NotificationService", "NotificationService\NotificationService.csproj", "{12345678-1234-1234-1234-123456789012}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EmailService", "EmailService\EmailService.csproj", "{23456789-2345-2345-2345-234567890123}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WorkerService", "WorkerService\WorkerService.csproj", "{23456789-2345-2345-2345-234567890123}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GrpcGreeter", "GrpcGreeter\GrpcGreeter.csproj", "{34567890-3456-3456-3456-345678901234}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EmailService", "EmailService\EmailService.csproj", "{34567890-3456-3456-3456-345678901234}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GrpcGreeter", "GrpcGreeter\GrpcGreeter.csproj", "{45678901-4567-4567-4567-456789012345}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -130,6 +132,18 @@ Global
 		{34567890-3456-3456-3456-345678901234}.Release|x64.Build.0 = Release|Any CPU
 		{34567890-3456-3456-3456-345678901234}.Release|x86.ActiveCfg = Release|Any CPU
 		{34567890-3456-3456-3456-345678901234}.Release|x86.Build.0 = Release|Any CPU
+		{45678901-4567-4567-4567-456789012345}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{45678901-4567-4567-4567-456789012345}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{45678901-4567-4567-4567-456789012345}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{45678901-4567-4567-4567-456789012345}.Debug|x64.Build.0 = Debug|Any CPU
+		{45678901-4567-4567-4567-456789012345}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{45678901-4567-4567-4567-456789012345}.Debug|x86.Build.0 = Debug|Any CPU
+		{45678901-4567-4567-4567-456789012345}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{45678901-4567-4567-4567-456789012345}.Release|Any CPU.Build.0 = Release|Any CPU
+		{45678901-4567-4567-4567-456789012345}.Release|x64.ActiveCfg = Release|Any CPU
+		{45678901-4567-4567-4567-456789012345}.Release|x64.Build.0 = Release|Any CPU
+		{45678901-4567-4567-4567-456789012345}.Release|x86.ActiveCfg = Release|Any CPU
+		{45678901-4567-4567-4567-456789012345}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -1,15 +1,75 @@
-using EmailService;
+using EmailService.Data;
+using EmailService.Repositories;
 using EmailService.Services;
+using EmailService.Mappings;
+using Microsoft.EntityFrameworkCore;
 
-var builder = Host.CreateDefaultBuilder(args)
-    .ConfigureAppConfiguration((hostingContext, config) =>
+var builder = WebApplication.CreateBuilder(args);
+
+// Configure Kestrel to listen on port 80
+builder.WebHost.ConfigureKestrel(serverOptions =>
+{
+    serverOptions.ListenAnyIP(80, listenOptions =>
     {
-        config.AddJsonFile("appsettings.json", optional: true, reloadOnChange: true);
-    })
-    .ConfigureServices((hostContext, services) =>
-    {
-        services.AddSingleton<IEmailTemplateService, EmailTemplateService>();
-        services.AddHostedService<Worker>();
+        listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2;
     });
+});
 
-await builder.RunConsoleAsync();
+// Add services to the container.
+builder.Services.AddControllers();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+
+// Add CORS
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend", policy =>
+        policy.WithOrigins("http://localhost:8080")
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials()
+    );
+});
+
+// Database
+builder.Services.AddDbContext<EmailServiceDbContext>(options =>
+    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+// AutoMapper
+builder.Services.AddAutoMapper(typeof(AutoMapperProfile));
+
+// Repositories
+builder.Services.AddScoped<IEmailTemplateRepository, EmailTemplateRepository>();
+
+// Services
+builder.Services.AddScoped<IEmailTemplateService, EmailTemplateService>();
+
+var app = builder.Build();
+
+using (var scope = app.Services.CreateScope())
+{
+    var context = scope.ServiceProvider.GetRequiredService<EmailServiceDbContext>();
+    try
+    {
+        context.Database.Migrate();
+    }
+    catch (Exception ex)
+    {
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+        logger.LogError(ex, "An error occurred while migrating the database");
+    }
+}
+
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
+
+app.UseCors("AllowFrontend");
+
+app.UseHttpsRedirection();
+app.UseAuthorization();
+app.MapControllers();
+
+app.Run();
