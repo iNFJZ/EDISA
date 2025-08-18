@@ -1,0 +1,826 @@
+# Microservices Deployments and Services
+
+# AuthService Deployment and Service
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-service
+  namespace: edisa
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: auth-service
+  template:
+    metadata:
+      labels:
+        app: auth-service
+    spec:
+      containers:
+      - name: auth-service
+        image: edisa:latest
+        workingDir: /app/AuthService
+        ports:
+        - containerPort: 80
+        - containerPort: 5003
+        env:
+        - name: ASPNETCORE_ENVIRONMENT
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: aspnetcore_environment
+        - name: ASPNETCORE_URLS
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: aspnetcore_urls
+        - name: ConnectionStrings__DefaultConnection
+          value: "Host=$(postgres_host);Port=$(postgres_port);Database=$(postgres_database);Username=$(postgres_user);Password=$(postgres_password)"
+        - name: ConnectionStrings__Redis
+          value: "$(redis_host):$(redis_port)"
+        - name: postgres_host
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: postgres_host
+        - name: postgres_port
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: postgres_port
+        - name: postgres_database
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: postgres_database
+        - name: postgres_user
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: postgres_user
+        - name: postgres_password
+          valueFrom:
+            secretKeyRef:
+              name: edisa-secrets
+              key: postgres_password
+        - name: JwtSettings__Key
+          valueFrom:
+            secretKeyRef:
+              name: edisa-secrets
+              key: jwt_secret
+        - name: JwtSettings__Issuer
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: jwt_issuer
+        - name: JwtSettings__Audience
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: jwt_audience
+        - name: JwtSettings__ExpiresInMinutes
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: jwt_expires_in_minutes
+        - name: Elasticsearch__Url
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: elasticsearch_url
+        - name: Elasticsearch__IndexFormat
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: elasticsearch_index_format
+        - name: RabbitMQ__HostName
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: rabbitmq_host
+        - name: RabbitMQ__Port
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: rabbitmq_port
+        - name: RabbitMQ__UserName
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: rabbitmq_user
+        - name: RabbitMQ__Password
+          valueFrom:
+            secretKeyRef:
+              name: edisa-secrets
+              key: rabbitmq_password
+        - name: RabbitMQ__VirtualHost
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: rabbitmq_vhost
+        - name: AuthPolicy__MaxFailedLoginAttempts
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: max_failed_login_attempts
+        - name: AuthPolicy__AccountLockMinutes
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: account_lock_minutes
+        - name: AuthPolicy__ResetPasswordTokenExpiryMinutes
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: reset_password_token_expiry_minutes
+        - name: GoogleAuth__ClientId
+          valueFrom:
+            secretKeyRef:
+              name: edisa-secrets
+              key: google_client_id
+        - name: GoogleAuth__ClientSecret
+          valueFrom:
+            secretKeyRef:
+              name: edisa-secrets
+              key: google_client_secret
+        - name: HunterApiKey
+          valueFrom:
+            secretKeyRef:
+              name: edisa-secrets
+              key: hunter_api_key
+        - name: Frontend__BaseUrl
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: frontend_base_url
+        - name: NotificationService__BaseUrl
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: notification_service_url
+        command: ["dotnet", "AuthService.dll"]
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        # Tạm thời comment out health checks để pods chạy ổn định
+        # livenessProbe:
+        #   httpGet:
+        #     path: /health
+        #     port: 80
+        #   initialDelaySeconds: 30
+        #   periodSeconds: 10
+        # readinessProbe:
+        #   httpGet:
+        #     path: /health
+        #     port: 80
+        #   initialDelaySeconds: 5
+        #   periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: auth-service
+  namespace: edisa
+spec:
+  selector:
+    app: auth-service
+  ports:
+  - name: http
+    port: 80
+    targetPort: 80
+  - name: grpc
+    port: 5003
+    targetPort: 5003
+  type: ClusterIP
+---
+# FileService Deployment and Service
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: file-service
+  namespace: edisa
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: file-service
+  template:
+    metadata:
+      labels:
+        app: file-service
+    spec:
+      containers:
+      - name: file-service
+        image: edisa:latest
+        workingDir: /app/FileService
+        ports:
+        - containerPort: 80
+        - containerPort: 5004
+        env:
+        - name: ASPNETCORE_ENVIRONMENT
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: aspnetcore_environment
+        - name: AuthService__Url
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: auth_service_url
+        - name: Minio__Endpoint
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: minio_endpoint
+        - name: Minio__Port
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: minio_port
+        - name: Minio__AccessKey
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: minio_access_key
+        - name: Minio__SecretKey
+          valueFrom:
+            secretKeyRef:
+              name: edisa-secrets
+              key: minio_password
+        - name: Minio__BucketName
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: minio_bucket_name
+        - name: Minio__UseSSL
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: minio_use_ssl
+        - name: RabbitMQ__HostName
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: rabbitmq_host
+        - name: RabbitMQ__Port
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: rabbitmq_port
+        - name: RabbitMQ__UserName
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: rabbitmq_user
+        - name: RabbitMQ__Password
+          valueFrom:
+            secretKeyRef:
+              name: edisa-secrets
+              key: rabbitmq_password
+        - name: RabbitMQ__VirtualHost
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: rabbitmq_vhost
+        - name: NotificationService__BaseUrl
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: notification_service_url
+        command: ["dotnet", "FileService.dll"]
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        # Tạm thời comment out health checks để pods chạy ổn định
+        # livenessProbe:
+        #   httpGet:
+        #     path: /health
+        #     port: 80
+        #   initialDelaySeconds: 30
+        #   periodSeconds: 10
+        # readinessProbe:
+        #   httpGet:
+        #     path: /health
+        #     port: 80
+        #   initialDelaySeconds: 5
+        #   periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: file-service
+  namespace: edisa
+spec:
+  selector:
+    app: file-service
+  ports:
+  - name: http
+    port: 80
+    targetPort: 80
+  - name: grpc
+    port: 5004
+    targetPort: 5004
+  type: ClusterIP
+---
+# EmailService Deployment and Service
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: email-service
+  namespace: edisa
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: email-service
+  template:
+    metadata:
+      labels:
+        app: email-service
+    spec:
+      containers:
+      - name: email-service
+        image: edisa:latest
+        workingDir: /app/EmailService
+        ports:
+        - containerPort: 80
+        env:
+        - name: ASPNETCORE_ENVIRONMENT
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: aspnetcore_environment
+        - name: ConnectionStrings__DefaultConnection
+          value: "Host=$(postgres_host);Port=$(postgres_port);Database=email_db;Username=$(postgres_user);Password=$(postgres_password)"
+        - name: postgres_host
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: postgres_host
+        - name: postgres_port
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: postgres_port
+        - name: postgres_user
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: postgres_user
+        - name: postgres_password
+          valueFrom:
+            secretKeyRef:
+              name: edisa-secrets
+              key: postgres_password
+        - name: RabbitMQ__HostName
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: rabbitmq_host
+        - name: RabbitMQ__Port
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: rabbitmq_port
+        - name: RabbitMQ__UserName
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: rabbitmq_user
+        - name: RabbitMQ__Password
+          valueFrom:
+            secretKeyRef:
+              name: edisa-secrets
+              key: rabbitmq_password
+        - name: RabbitMQ__VirtualHost
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: rabbitmq_vhost
+        command: ["dotnet", "EmailService.dll"]
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        # Tạm thời comment out health checks để pods chạy ổn định
+        # livenessProbe:
+        #   httpGet:
+        #     path: /health
+        #     port: 80
+        #   initialDelaySeconds: 30
+        #   periodSeconds: 10
+        # readinessProbe:
+        #   httpGet:
+        #     path: /health
+        #     port: 80
+        #   initialDelaySeconds: 5
+        #   periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: email-service
+  namespace: edisa
+spec:
+  selector:
+    app: email-service
+  ports:
+  - name: http
+    port: 80
+    targetPort: 80
+  type: ClusterIP
+---
+# UserService Deployment and Service
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-service
+  namespace: edisa
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: user-service
+  template:
+    metadata:
+      labels:
+        app: user-service
+    spec:
+      containers:
+      - name: user-service
+        image: edisa:latest
+        workingDir: /app/UserService
+        ports:
+        - containerPort: 80
+        env:
+        - name: ASPNETCORE_ENVIRONMENT
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: aspnetcore_environment
+        - name: ConnectionStrings__DefaultConnection
+          value: "Host=$(postgres_host);Port=$(postgres_port);Database=auth_db;Username=$(postgres_user);Password=$(postgres_password)"
+        - name: ConnectionStrings__Redis
+          value: "$(redis_host):$(redis_port)"
+        - name: postgres_host
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: postgres_host
+        - name: postgres_port
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: postgres_port
+        - name: postgres_user
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: postgres_user
+        - name: postgres_password
+          valueFrom:
+            secretKeyRef:
+              name: edisa-secrets
+              key: postgres_password
+        - name: redis_host
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: redis_host
+        - name: redis_port
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: redis_port
+        - name: AuthService__Url
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: auth_service_url
+        - name: JwtSettings__Key
+          valueFrom:
+            secretKeyRef:
+              name: edisa-secrets
+              key: jwt_secret
+        - name: JwtSettings__Issuer
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: jwt_issuer
+        - name: JwtSettings__Audience
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: jwt_audience
+        - name: JwtSettings__ExpiresInMinutes
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: jwt_expires_in_minutes
+        - name: Elasticsearch__Url
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: elasticsearch_url
+        - name: Elasticsearch__IndexFormat
+          value: "edisa-user-logs-{0:yyyy.MM}"
+        - name: RabbitMQ__HostName
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: rabbitmq_host
+        - name: RabbitMQ__Port
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: rabbitmq_port
+        - name: RabbitMQ__UserName
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: rabbitmq_user
+        - name: RabbitMQ__Password
+          valueFrom:
+            secretKeyRef:
+              name: edisa-secrets
+              key: rabbitmq_password
+        - name: RabbitMQ__VirtualHost
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: rabbitmq_vhost
+        - name: NotificationService__BaseUrl
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: notification_service_url
+        command: ["dotnet", "UserService.dll"]
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        # Tạm thời comment out health checks để pods chạy ổn định
+        # livenessProbe:
+        #   httpGet:
+        #     path: /health
+        #     port: 80
+        #   initialDelaySeconds: 30
+        #   periodSeconds: 10
+        # readinessProbe:
+        #   httpGet:
+        #     path: /health
+        #     port: 80
+        #   initialDelaySeconds: 5
+        #   periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-service
+  namespace: edisa
+spec:
+  selector:
+    app: user-service
+  ports:
+  - name: http
+    port: 80
+    targetPort: 80
+  type: ClusterIP
+---
+# NotificationService Deployment and Service
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-service
+  namespace: edisa
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: notification-service
+  template:
+    metadata:
+      labels:
+        app: notification-service
+    spec:
+      containers:
+      - name: notification-service
+        image: edisa:latest
+        workingDir: /app/NotificationService
+        ports:
+        - containerPort: 80
+        env:
+        - name: ASPNETCORE_ENVIRONMENT
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: aspnetcore_environment
+        - name: ConnectionStrings__DefaultConnection
+          value: "Host=$(postgres_host);Port=$(postgres_port);Database=notification_db;Username=$(postgres_user);Password=$(postgres_password)"
+        - name: postgres_host
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: postgres_host
+        - name: postgres_port
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: postgres_port
+        - name: postgres_user
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: postgres_user
+        - name: postgres_password
+          valueFrom:
+            secretKeyRef:
+              name: edisa-secrets
+              key: postgres_password
+        - name: JwtSettings__Key
+          valueFrom:
+            secretKeyRef:
+              name: edisa-secrets
+              key: jwt_secret
+        - name: JwtSettings__Issuer
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: jwt_issuer
+        - name: JwtSettings__Audience
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: jwt_audience
+        - name: JwtSettings__ExpiresInMinutes
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: jwt_expires_in_minutes
+        - name: CorsSettings__AllowedOrigins
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: cors_allowed_origins
+        command: ["dotnet", "NotificationService.dll"]
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        # Tạm thời comment out health checks để pods chạy ổn định
+        # livenessProbe:
+        #   httpGet:
+        #     path: /health
+        #     port: 80
+        #   initialDelaySeconds: 30
+        #   periodSeconds: 10
+        # readinessProbe:
+        #   httpGet:
+        #     path: /health
+        #     port: 80
+        #   initialDelaySeconds: 5
+        #   periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: notification-service
+  namespace: edisa
+spec:
+  selector:
+    app: notification-service
+  ports:
+  - name: http
+    port: 80
+    targetPort: 80
+  type: ClusterIP
+---
+# WorkerService Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker-service
+  namespace: edisa
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: worker-service
+  template:
+    metadata:
+      labels:
+        app: worker-service
+    spec:
+      containers:
+      - name: worker-service
+        image: edisa:latest
+        workingDir: /app/WorkerService
+        env:
+        - name: ASPNETCORE_ENVIRONMENT
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: aspnetcore_environment
+        - name: RabbitMQ__HostName
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: rabbitmq_host
+        - name: RabbitMQ__Port
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: rabbitmq_port
+        - name: RabbitMQ__UserName
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: rabbitmq_user
+        - name: RabbitMQ__Password
+          valueFrom:
+            secretKeyRef:
+              name: edisa-secrets
+              key: rabbitmq_password
+        - name: RabbitMQ__VirtualHost
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: rabbitmq_vhost
+        command: ["dotnet", "WorkerService.dll"]
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+---
+# gRPC Server Deployment and Service
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grpc-server
+  namespace: edisa
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: grpc-server
+  template:
+    metadata:
+      labels:
+        app: grpc-server
+    spec:
+      containers:
+      - name: grpc-server
+        image: edisa:latest
+        workingDir: /app/GrpcGreeter
+        ports:
+        - containerPort: 5219
+        env:
+        - name: ASPNETCORE_ENVIRONMENT
+          valueFrom:
+            configMapKeyRef:
+              name: edisa-config
+              key: aspnetcore_environment
+        - name: ASPNETCORE_URLS
+          value: "http://+:5219"
+        command: ["dotnet", "GrpcGreeter.dll"]
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grpc-server
+  namespace: edisa
+spec:
+  selector:
+    app: grpc-server
+  ports:
+  - name: grpc
+    port: 5219
+    targetPort: 5219
+  type: ClusterIP

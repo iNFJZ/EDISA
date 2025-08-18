@@ -1,0 +1,86 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: edisa-config
+  namespace: edisa
+data:
+  # PostgreSQL Configuration
+  postgres_host: "postgres-service"
+  postgres_port: "5432"
+  postgres_database: "postgres"
+  postgres_user: "postgres"
+  
+  # Redis Configuration
+  redis_host: "redis-service"
+  redis_port: "6379"
+  
+  # RabbitMQ Configuration
+  rabbitmq_host: "rabbitmq-service"
+  rabbitmq_port: "5672"
+  rabbitmq_user: "guest"
+  rabbitmq_vhost: "/"
+  
+  # MinIO Configuration
+  minio_endpoint: "minio-service"
+  minio_port: "9000"
+  minio_access_key: "minio"
+  minio_bucket_name: "mybucket"
+  minio_use_ssl: "false"
+  
+  # Elasticsearch Configuration
+  elasticsearch_url: "http://elasticsearch-service:9200"
+  elasticsearch_index_format: "edisa-logs-{0:yyyy.MM}"
+  
+  # Service URLs
+  auth_service_url: "http://auth-service:80"
+  file_service_url: "http://file-service:80"
+  email_service_url: "http://email-service:80"
+  user_service_url: "http://user-service:80"
+  notification_service_url: "http://notification-service:80"
+  gateway_api_url: "http://gateway-api:80"
+  grpc_server_url: "http://grpc-server:5219"
+  
+  # Environment
+  aspnetcore_environment: "Production"
+  aspnetcore_urls: "http://+:80"
+  
+  # JWT Settings
+  jwt_issuer: "EDISA"
+  jwt_audience: "EDISA"
+  jwt_expires_in_minutes: "60"
+  
+  # Auth Policy
+  max_failed_login_attempts: "3"
+  account_lock_minutes: "5"
+  reset_password_token_expiry_minutes: "15"
+  
+  # Google Auth (placeholder - should be in secrets)
+  google_client_id: "your-google-client-id"
+  google_client_secret: "your-google-client-secret"
+  
+  # Hunter API (placeholder - should be in secrets)
+  hunter_api_key: "your-hunter-api-key"
+  
+  # Frontend URL
+  frontend_base_url: "http://edisa.local"
+  
+  # CORS Settings
+  cors_allowed_origins: "http://edisa.local,http://localhost:3000,http://localhost:8080"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-config
+  namespace: edisa
+data:
+  POSTGRES_DB: "postgres"
+  POSTGRES_USER: "postgres"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: minio-config
+  namespace: edisa
+data:
+  MINIO_ROOT_USER: "minio"
+  MINIO_BUCKET_NAME: "mybucket"

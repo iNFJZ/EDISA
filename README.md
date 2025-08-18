@@ -1,11 +1,15 @@
-# Microservice System
+# EDISA Microservice System
 
 Hệ thống microservice .NET 8 gồm các service:
 - **AuthService**: Xác thực, phân quyền, quản lý user, JWT, Redis session.
 - **FileService**: Upload/download/list/delete file với MinIO, gửi event qua RabbitMQ.
 - **GatewayApi**: API Gateway dùng Ocelot.
 - **EmailService**: Nhận event từ RabbitMQ, gửi email notification qua Gmail SMTP.
-- **Frontend**: Giao diện người dùng, quản lý qua Nginx, tích hợp CI/CD Jenkins.
+- **UserService**: Quản trị người dùng, tích hợp cache Redis, gửi notification.
+- **NotificationService**: REST + SignalR Hub đẩy thông báo realtime.
+- **GrpcGreeter**: gRPC server demo.
+- **WorkerService**: Worker background consume message.
+- **Frontend**: Giao diện người dùng (Nginx), mount LanguageFiles.
 
 ## 🏗️ Kiến trúc tổng thể
 
@@ -48,47 +52,112 @@ PostgreSQL    MinIO      RabbitMQ
 
 ## 🛠️ Công nghệ sử dụng
 
-- .NET 8, Entity Framework Core
-- PostgreSQL, Redis, MinIO, RabbitMQ
-- Ocelot, JWT, Docker Compose, Jenkins
-- Gmail SMTP (app password) cho EmailService
-- Nginx, jQuery, Toastr, ngrok (cho webhook Jenkins)
+- .NET 8, Entity Framework Core, AutoMapper, Serilog, OpenTelemetry (extension)
+- PostgreSQL, Redis, MinIO, RabbitMQ, Elasticsearch + Kibana
+- Ocelot (Gateway), JWT, SignalR
+- Docker, Docker Compose, Kubernetes (Kustomize, Ingress-NGINX, HPA)
+- Jenkins CI/CD, ngrok (webhook), Nginx (Frontend)
 
 ## 🚀 Quick Start
 
 ### Prerequisites
 - Docker & Docker Compose
 - .NET 8 SDK
-- Jenkins (chạy qua Docker)
-- Ngrok (nếu dùng webhook GitHub)
+- Tùy chọn cho Kubernetes: `kubectl`, Minikube hoặc kind, Ingress-NGINX, metrics-server
+- Jenkins (tùy chọn, chạy qua Docker) + ngrok (nếu dùng webhook GitHub)
 
-### 1. Clone repository
+### 1) Clone repository
 ```bash
 git clone <repository-url>
-cd MicroserviceSystem
+cd EDISA
 ```
 
-### 2. Build & chạy toàn bộ hệ thống
+### 2) Chạy nhanh bằng Docker Compose (local dev)
 ```bash
 docker compose up --build
 # hoặc chạy nền
 docker compose up -d
 ```
 
-### 3. Dừng hệ thống
+Tắt hệ thống:
 ```bash
 docker compose down
-# Xóa luôn volume (xóa sạch data)
+# Xóa luôn volume (xóa sạch data):
 docker compose down -v
 ```
 
-### 4. Chạy Jenkins + ngrok cho CI/CD tự động
-- Chạy Jenkins container mount docker.sock
-- Chạy ngrok: `ngrok http 9090`
-- Cấu hình webhook GitHub trỏ về: `https://<ngrok-id>.ngrok-free.app/github-webhook/`
-- Push code lên GitHub, Jenkins sẽ tự động build/deploy
+URL khi chạy Docker Compose (mặc định):
+- RabbitMQ UI: http://localhost:15672 (guest/guest)
+- MinIO UI: http://localhost:9001 (minio/minio123)
+- Elasticsearch: http://localhost:9200, Kibana: http://localhost:5601
+- AuthService Swagger: http://localhost:5001/swagger
+- FileService Swagger: http://localhost:5002/swagger
+- UserService Swagger: http://localhost:5005/swagger
+- NotificationService Swagger: http://localhost:5006/swagger
+- GatewayApi: http://localhost:5050
+- Frontend: http://localhost:8080
 
-## 📡 API Endpoints
+### 3) Chạy bằng Kubernetes (khuyến nghị)
+
+1. Khởi tạo cluster và Ingress
+- Minikube:
+```bash
+minikube start --driver=docker
+minikube addons enable ingress
+minikube addons enable metrics-server
+```
+- kind (ví dụ):
+```bash
+kind create cluster
+# Cài ingress-nginx theo hướng dẫn chính thức (nếu chưa có)
+```
+
+2. Build image và nạp vào cluster (Mac M-series nên build linux/amd64)
+```bash
+docker build --platform linux/amd64 -t edisa:latest .
+docker build --platform linux/amd64 -t edisa-frontend:latest ./Frontend
+
+# Minikube
+minikube image load edisa:latest
+minikube image load edisa-frontend:latest
+
+# kind (nếu dùng kind)
+# kind load docker-image edisa:latest
+# kind load docker-image edisa-frontend:latest
+```
+
+3. Apply K8s manifests
+```bash
+kubectl apply -k k8s
+kubectl get pods -n edisa
+```
+
+4. Trỏ domain `edisa.local` về Ingress
+- Minikube:
+```bash
+echo "$(minikube ip) edisa.local" | sudo tee -a /etc/hosts
+```
+- kind: trỏ IP của ingress-nginx vào `/etc/hosts` (hoặc dùng `kubectl port-forward`).
+
+5. Truy cập qua Ingress
+- Frontend: http://edisa.local/
+- API Gateway: http://edisa.local/api
+- Auth: http://edisa.local/auth
+- Files: http://edisa.local/files
+- Users: http://edisa.local/users
+- Emails: http://edisa.local/emails
+- Notifications: http://edisa.local/notifications, SignalR: `ws(s)://edisa.local/notificationhub`
+- MinIO: http://edisa.local/minio, Console: http://edisa.local/minio-console
+- Kibana: http://edisa.local/kibana
+- RabbitMQ UI: http://edisa.local/rabbitmq
+- gRPC demo: http://edisa.local/grpc (service port 5219 trong cluster)
+
+6. Teardown
+```bash
+kubectl delete -k k8s
+```
+
+## 📡 API Endpoints (tổng quan)
 
 ### AuthService (http://localhost:5001)
 - `POST /api/auth/register` - Đăng ký user
@@ -107,21 +176,32 @@ docker compose down -v
 - `DELETE /api/file/delete/{fileName}` - Xóa file
 - `GET /api/file/list` - Liệt kê file
 
-### GatewayApi (http://localhost:5050)
-- `/api/auth/*` - Proxy đến AuthService
-- `/api/file/*` - Proxy đến FileService
+### GatewayApi
+- Upstream: `/api/Auth/*`, `/api/File/*`, `/api/User/*`, `/api/Notification/*`, `/api/Email/*`
+- Downstream: theo `GatewayApi/ocelot.json` tới các service cùng namespace `edisa`.
 
 ## 📨 Email Notification (Event-driven)
-- Đăng ký, upload, download, delete file đều gửi event qua RabbitMQ.
+- Đăng ký, upload, download, delete file gửi event qua RabbitMQ.
 - EmailService consume event, gửi email với nội dung động.
 
 ## 🗄️ Cấu hình môi trường
 
-- **PostgreSQL**: auth_db, user: postgres, pass: 123456, port: 5432
-- **Redis**: redis:6379
-- **MinIO**: minio:9000, access: minio, secret: minio123, bucket: mybucket
-- **RabbitMQ**: guest/guest, port: 5672, UI: 15672
-- **Gmail SMTP**: cấu hình trong EmailService/appsettings.json
+### Docker Compose (mặc định trong `docker-compose.yml`)
+- PostgreSQL: `postgres:5432`, user: `postgres`, pass: `123456`
+- Redis: `redis:6379`
+- MinIO: `minio:9000` (access: `minio`, secret: `minio123`, bucket: `mybucket`)
+- RabbitMQ: `rabbitmq:5672` (guest/guest), UI: `15672`
+- Elasticsearch: `elasticsearch:9200`, Kibana: `kibana:5601`
+
+### Kubernetes (`k8s/`)
+- `k8s/configmaps.yaml` (ConfigMap `edisa-config`) chứa: `postgres_host/port`, `redis_host/port`, `rabbitmq_*`, `minio_*`, `elasticsearch_url`, các URL service, `aspnetcore_environment`, `aspnetcore_urls`, JWT config, CORS.
+- `k8s/secrets.yaml` (Secret `edisa-secrets`) chứa: `postgres_password`, `minio_password`, `rabbitmq_password`, `jwt_secret`, `email_password`, `google_client_id/secret`, `hunter_api_key`. Vui lòng thay thế giá trị thật (base64) trước khi deploy production.
+- Ingress: `k8s/ingress.yaml` khai báo host `edisa.local` và routing tới các Service nội bộ.
+- Lưu ý Storage: `k8s/storage.yaml` dùng `hostPath` + `local-storage` (phục vụ dev). Production nên dùng StorageClass phù hợp cloud.
+
+### Cấu hình ứng dụng
+- Mỗi service có `appsettings.json` và `appsettings.Development.json`. Biến môi trường override từ Docker/K8s.
+- GatewayApi routing tại `GatewayApi/ocelot.json`.
 
 ## 🧪 Testing
 
@@ -129,46 +209,59 @@ docker compose down -v
 dotnet test
 ```
 
-## 📝 Lưu ý thực tế & CI/CD
+## 🧬 Database & Migrations
+- Các service dùng EF Core tự động chạy `Database.Migrate()` khi khởi động (Auth, User, Email, Notification).
+- Tạo migration (ví dụ cho AuthService):
+```bash
+cd AuthService
+dotnet ef migrations add <Name> --project AuthService.csproj
+dotnet ef database update --project AuthService.csproj
+```
+- Seed dữ liệu mẫu (tùy chọn): dùng `sample_data.sql` vào PostgreSQL.
+  - Docker Compose: `docker exec -i edisa psql -U postgres -d postgres < sample_data.sql`
+  - K8s: `kubectl -n edisa exec -it deploy/postgres -- bash -lc "psql -U $POSTGRES_USER -d $POSTGRES_DB"` rồi chạy nội dung file.
 
-- **CI/CD Jenkins + Docker:**
-  - Push code lên GitHub → webhook gửi về Jenkins (qua ngrok) → Jenkins tự động build, dọn dẹp container cũ, deploy lại toàn bộ hệ thống.
-  - Jenkinsfile đã tự động dọn dẹp tất cả container có thể conflict:
-    ```sh
-    docker rm -f grpc-server minio auth-postgres redis rabbitmq email-service auth-service file-service user-service gateway-api frontend || true
-    docker-compose down -v --remove-orphans || true
-    ```
-  - Build chỉ chạy khi có commit mới (SHA mới).
-- **Lỗi conflict container:**
-  - Đã tự động dọn dẹp trong Jenkinsfile, nếu vẫn lỗi thì xóa thủ công như trên.
+## 📝 CI/CD & DevOps
+
+- Jenkins pipeline: xem `Jenkinsfile`. Pipeline dọn dẹp container conflict, build và `docker compose up -d` theo commit mới.
+- Webhook: dùng ngrok để expose Jenkins nếu chạy local (ví dụ: `ngrok http 9090`), trỏ GitHub webhook về URL ngrok.
+- Tài liệu chi tiết: `k8s/COMPLETE_GUIDE.md`.
 
 ## 📊 Monitoring & UI
 
-- **RabbitMQ UI**: http://localhost:15672 (guest/guest)
-- **MinIO UI**: http://localhost:9001 (minio/minio123)
-- **Swagger**: http://localhost:5001/swagger, http://localhost:5002/swagger
-- **Jenkins**: http://localhost:9090
-- **Frontend**: http://localhost:8080
+- RabbitMQ UI: Docker Compose `http://localhost:15672`, K8s qua Ingress `http://edisa.local/rabbitmq`
+- MinIO UI: Docker Compose `http://localhost:9001`, K8s `http://edisa.local/minio-console`
+- Swagger: theo từng service cổng local hoặc qua Ingress (Gateway proxy theo Ocelot)
+- Kibana: Docker Compose `http://localhost:5601`, K8s `http://edisa.local/kibana`
+- Jenkins: http://localhost:9090 (nếu chạy)
 
-## 📂 Cấu trúc thư mục
+## 📂 Cấu trúc thư mục (rút gọn)
 
 ```
-MicroserviceSystem/
-├── AuthService/
-├── FileService/
-├── GatewayApi/
-├── EmailService/
-├── UserService/
-├── GrpcGreeter/
-├── Shared/
-├── Frontend/
-│   ├── html/
-│   ├── js/
-│   ├── css/
-│   ├── assets/
-│   ├── nginx.conf
-│   └── Dockerfile
-├── docker-compose.yml
-├── Dockerfile
-└── README.md
+EDISA/
+├── AuthService/               # API + gRPC, EF Migrations tự migrate
+├── FileService/               # API + gRPC, MinIO, JWT
+├── GatewayApi/                # Ocelot API Gateway (ocelot.json)
+├── EmailService/              # Consume event, gửi email
+├── UserService/               # Quản lý người dùng, Redis cache
+├── NotificationService/       # REST + SignalR Hub
+├── GrpcGreeter/               # gRPC demo
+├── WorkerService/             # Worker background
+├── Shared/                    # Thư viện dùng chung + LanguageFiles
+├── Frontend/                  # Nginx static UI + nginx.conf
+├── k8s/                       # Kustomize manifests (namespace, config, secrets, infra, services, ingress, hpa)
+├── Postman_Collections/       # Sẵn sàng import để test API
+├── docker-compose.yml         # Dev nhanh không cần K8s
+├── Dockerfile                 # Multi-stage build cho toàn backend image `edisa`
+├── README.md
+└── Jenkinsfile                # CI/CD pipeline
 ```
+
+## 📦 Postman Collections
+- Thư mục `Postman_Collections/` có sẵn collection cho Auth, File, Gateway. Import vào Postman để test nhanh.
+
+## ⚠️ Lưu ý
+- Giá trị trong `k8s/secrets.yaml` là ví dụ (base64). Hãy thay bằng secrets thật trước khi publish/production.
+- `k8s/storage.yaml` dùng `hostPath` (phù hợp dev). Production cần StorageClass/volume chuẩn.
+- Health checks trong manifests tạm comment để pods khởi động ổn định lần đầu. Có thể bật lại khi image ổn định.
+
