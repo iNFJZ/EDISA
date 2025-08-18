@@ -1,0 +1,256 @@
+# EDISA Helm Chart Values
+# Sử dụng để cấu hình deployment
+
+# Global settings
+global:
+  namespace: edisa
+  imageRegistry: ""
+  imagePullSecrets: []
+  storageClass: "local-storage"
+
+# Image settings
+images:
+  edisa:
+    repository: edisa
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  edisaFrontend:
+    repository: edisa-frontend
+    tag: "latest"
+    pullPolicy: IfNotPresent
+
+# Infrastructure services
+infrastructure:
+  postgres:
+    enabled: true
+    image:
+      repository: postgres
+      tag: "14"
+    storage:
+      size: "10Gi"
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "250m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+  
+  redis:
+    enabled: true
+    image:
+      repository: redis
+      tag: "latest"
+    storage:
+      size: "5Gi"
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "100m"
+      limits:
+        memory: "256Mi"
+        cpu: "200m"
+  
+  rabbitmq:
+    enabled: true
+    image:
+      repository: rabbitmq
+      tag: "management"
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "250m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+  
+  minio:
+    enabled: true
+    image:
+      repository: minio/minio
+      tag: "latest"
+    storage:
+      size: "20Gi"
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "250m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+  
+  elasticsearch:
+    enabled: true
+    image:
+      repository: docker.elastic.co/elasticsearch/elasticsearch
+      tag: "8.11.0"
+    storage:
+      size: "15Gi"
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "500m"
+      limits:
+        memory: "1Gi"
+        cpu: "1000m"
+  
+  kibana:
+    enabled: true
+    image:
+      repository: docker.elastic.co/kibana/kibana
+      tag: "8.11.0"
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "250m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+
+# Microservices
+microservices:
+  auth:
+    enabled: true
+    replicas: 2
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "250m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+  
+  file:
+    enabled: true
+    replicas: 2
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "250m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+  
+  user:
+    enabled: true
+    replicas: 2
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "250m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+  
+  email:
+    enabled: true
+    replicas: 2
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "250m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+  
+  notification:
+    enabled: true
+    replicas: 2
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "250m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+  
+  worker:
+    enabled: true
+    replicas: 2
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "250m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+  
+  grpc:
+    enabled: true
+    replicas: 2
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "250m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+
+# Gateway and Frontend
+gateway:
+  enabled: true
+  replicas: 2
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+frontend:
+  enabled: true
+  replicas: 2
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+
+# Ingress
+ingress:
+  enabled: true
+  className: "nginx"
+  host: "edisa.local"
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+
+# HPA
+hpa:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  cpuTarget: 70
+  memoryTarget: 80
+
+# Configuration
+config:
+  environment: "Production"
+  database:
+    host: "postgres-service"
+    port: "5432"
+    name: "postgres"
+    user: "postgres"
+  redis:
+    host: "redis-service"
+    port: "6379"
+  rabbitmq:
+    host: "rabbitmq-service"
+    port: "5672"
+    user: "guest"
+    password: "guest"
+    vhost: "/"
+  minio:
+    endpoint: "minio-service"
+    port: "9000"
+    bucket: "mybucket"
+    useSSL: false
+  elasticsearch:
+    url: "http://elasticsearch-service:9200"
+    indexFormat: "edisa-logs-{0:yyyy.MM}"

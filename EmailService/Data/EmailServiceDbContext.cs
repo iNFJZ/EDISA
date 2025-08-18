@@ -18,8 +18,6 @@ namespace EmailService.Data
             modelBuilder.Entity<EmailTemplate>()
                 .HasIndex(et => new { et.Name, et.Language })
                 .IsUnique();
-
-            SeedEmailTemplates(modelBuilder);
         }
 
         private void SeedEmailTemplates(ModelBuilder modelBuilder)

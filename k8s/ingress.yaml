@@ -1,0 +1,121 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: edisa-ingress
+  namespace: edisa
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: edisa.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: frontend
+            port:
+              number: 80
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: gateway-api
+            port:
+              number: 80
+      - path: /auth
+        pathType: Prefix
+        backend:
+          service:
+            name: auth-service
+            port:
+              number: 80
+      - path: /files
+        pathType: Prefix
+        backend:
+          service:
+            name: file-service
+            port:
+              number: 80
+      - path: /users
+        pathType: Prefix
+        backend:
+          service:
+            name: user-service
+            port:
+              number: 80
+      - path: /emails
+        pathType: Prefix
+        backend:
+          service:
+            name: email-service
+            port:
+              number: 80
+      - path: /notifications
+        pathType: Prefix
+        backend:
+          service:
+            name: notification-service
+            port:
+              number: 80
+      - path: /grpc
+        pathType: Prefix
+        backend:
+          service:
+            name: grpc-server
+            port:
+              number: 5219
+      - path: /minio
+        pathType: Prefix
+        backend:
+          service:
+            name: minio-service
+            port:
+              number: 9000
+      - path: /minio-console
+        pathType: Prefix
+        backend:
+          service:
+            name: minio-service
+            port:
+              number: 9001
+      - path: /kibana
+        pathType: Prefix
+        backend:
+          service:
+            name: kibana-service
+            port:
+              number: 5601
+      - path: /rabbitmq
+        pathType: Prefix
+        backend:
+          service:
+            name: rabbitmq-service
+            port:
+              number: 15672
+---
+# LoadBalancer Service cho external access
+apiVersion: v1
+kind: Service
+metadata:
+  name: edisa-loadbalancer
+  namespace: edisa
+spec:
+  type: LoadBalancer
+  ports:
+  - name: http
+    port: 80
+    targetPort: 80
+    protocol: TCP
+  - name: https
+    port: 443
+    targetPort: 80
+    protocol: TCP
+  selector:
+    app: frontend

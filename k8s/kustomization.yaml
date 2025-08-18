@@ -1,0 +1,25 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: edisa
+
+resources:
+  - namespace.yaml
+  - storage.yaml
+  - configmaps.yaml
+  - secrets.yaml
+  - language-files-configmap.yaml
+  - infrastructure.yaml
+  - microservices.yaml
+  - gateway-frontend.yaml
+  - ingress.yaml
+  - hpa.yaml
+
+commonLabels:
+  app.kubernetes.io/name: edisa
+  app.kubernetes.io/part-of: microservice-system
+  app.kubernetes.io/version: "1.0.0"
+
+commonAnnotations:
+  description: "EDISA Microservice System"
+  maintainer: "EDISA"
