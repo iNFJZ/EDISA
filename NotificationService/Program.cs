@@ -72,7 +72,7 @@ builder.Services.AddCors(options =>
 
 // Add JWT Authentication
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
-var key = Encoding.ASCII.GetBytes(jwtSettings["Key"]);
+var key = Encoding.ASCII.GetBytes(jwtSettings["Key"] ?? throw new InvalidOperationException("JWT Key is not configured."));
 
 builder.Services.AddAuthentication(options =>
 {
@@ -120,6 +120,9 @@ builder.Services.AddScoped<NotificationService.Services.INotificationService, No
 
 // Add Logging Service
 builder.Services.AddLoggingService();
+
+// Add Audit Helper
+builder.Services.AddHttpClient<Shared.Services.IAuditHelper, Shared.Services.AuditHelper>();
 
 var app = builder.Build();
 

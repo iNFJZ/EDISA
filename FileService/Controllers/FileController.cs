@@ -13,6 +13,8 @@ using Microsoft.Extensions.Localization;
 using System.Text.Json;
 using System.IO;
 using System.Linq;
+using Shared.Services;
+using Shared.AuditModels;
 
 namespace FileService.Controllers
 {
@@ -27,6 +29,7 @@ namespace FileService.Controllers
         private readonly IEmailMessageService _emailMessageService;
         private readonly IStringLocalizer<FileController> _localizer;
         private readonly INotificationService _notificationService;
+        private readonly IAuditHelper _auditHelper;
 
         public FileController(
             IFileService fileService, 
@@ -34,7 +37,8 @@ namespace FileService.Controllers
             ILogger<FileController> logger,
             IEmailMessageService emailMessageService,
             IStringLocalizer<FileController> localizer,
-            INotificationService notificationService)
+            INotificationService notificationService,
+            IAuditHelper auditHelper)
         {
             _fileService = fileService;
             _validationService = validationService;
@@ -42,6 +46,7 @@ namespace FileService.Controllers
             _emailMessageService = emailMessageService;
             _localizer = localizer;
             _notificationService = notificationService;
+            _auditHelper = auditHelper;
         }
 
         [HttpPost("upload")]
@@ -63,6 +68,26 @@ namespace FileService.Controllers
                 if (files == null || files.Count == 0)
                 {
                     _logger.LogWarning("File upload failed: No files provided by User: {UserId}", userId);
+                    // Audit failure
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var auditEvent = new FileAuditEvent
+                            {
+                                UserId = userId,
+                                UserEmail = userEmail,
+                                Action = "UPLOAD_FILE",
+                                ResourceId = null,
+                                Success = false,
+                                ErrorMessage = "No files provided",
+                                IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString(),
+                                UserAgent = Request.Headers["User-Agent"].ToString()
+                            };
+                            await _auditHelper.LogEventAsync(auditEvent);
+                        }
+                        catch { }
+                    });
                     return BadRequest(_localizer["NoFilesUploaded"]);
                 }
 
@@ -82,6 +107,32 @@ namespace FileService.Controllers
                         {
                             _logger.LogWarning("File validation failed: {FileName}, Error: {ErrorMessage}, User: {UserId}", 
                                 file.FileName, errorMessage, userId);
+                            // Audit validation failure
+                            _ = Task.Run(async () =>
+                            {
+                                try
+                                {
+                                    var auditEvent = new FileAuditEvent
+                                    {
+                                        UserId = userId,
+                                        UserEmail = userEmail,
+                                        Action = "UPLOAD_FILE",
+                                        ResourceId = file.FileName,
+                                        Success = false,
+                                        ErrorMessage = errorMessage ?? "Validation failed",
+                                        IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString(),
+                                        UserAgent = Request.Headers["User-Agent"].ToString(),
+                                        Metadata = new Dictionary<string, object>
+                                        {
+                                            { "FileName", file.FileName },
+                                            { "FileSize", file.Length },
+                                            { "ContentType", file.ContentType }
+                                        }
+                                    };
+                                    await _auditHelper.LogEventAsync(auditEvent);
+                                }
+                                catch { }
+                            });
                             results.Add(new { fileName = file?.FileName ?? "", message = _localizer[errorMessage] });
                             failureCount++;
                             continue;
@@ -96,7 +147,37 @@ namespace FileService.Controllers
                         results.Add(new { fileName = file.FileName, message = _localizer["FileUploadedSuccessfully"] });
                         successCount++;
 
-                        // Send email notification
+                        var auditEvent = new FileAuditEvent
+                        {
+                            UserId = userId,
+                            UserEmail = userEmail,
+                            Action = "UPLOAD_FILE",
+                            ResourceId = file.FileName,
+                            Success = true,
+                            IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString(),
+                            UserAgent = Request.Headers["User-Agent"].ToString(),
+                            Metadata = new Dictionary<string, object>
+                            {
+                                { "FileName", file.FileName },
+                                { "FileSize", file.Length },
+                                { "ContentType", file.ContentType },
+                                { "Description", description },
+                                { "UploadTime", DateTime.UtcNow }
+                            }
+                        };
+
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                await _auditHelper.LogEventAsync(auditEvent);
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.LogWarning(ex, "Failed to log audit event for file upload: {FileName}", file.FileName);
+                            }
+                        });
+
                         try
                         {
                             var userLanguageClaim = User.FindFirst("language");
@@ -118,8 +199,7 @@ namespace FileService.Controllers
                             _logger.LogWarning(emailEx, "Failed to send email notification for file upload: {FileName}, User: {UserId}. File was uploaded successfully.", 
                                 file.FileName, userId);
                         }
-
-                        // Send real-time notification
+    
                         try
                         {
                             if (!string.IsNullOrEmpty(userId))
@@ -204,6 +284,7 @@ namespace FileService.Controllers
                     var userNameClaim = User.FindFirst(JwtRegisteredClaimNames.Name);
                     var userEmail = userEmailClaim?.Value ?? "";
                     var userName = userNameClaim?.Value ?? "";
+                    var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
 
                     var userLanguageClaim = User.FindFirst("language");
                     var userLanguage = userLanguageClaim?.Value ?? "en";
@@ -257,6 +338,44 @@ namespace FileService.Controllers
                 catch (Exception notificationEx)
                 {
                     _logger.LogWarning(notificationEx, "Failed to send real-time notification for download: {FileName}. File was downloaded successfully.", fileName);
+                }
+
+                try
+                {
+                    var userIdForAudit = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
+                    var userEmailForAudit = (User.FindFirst(ClaimTypes.Email) ?? User.FindFirst("email"))?.Value ?? string.Empty;
+
+                    var auditEvent = new FileAuditEvent
+                    {
+                        UserId = userIdForAudit,
+                        UserEmail = userEmailForAudit,
+                        Action = "DOWNLOAD_FILE",
+                        ResourceId = fileName,
+                        Success = true,
+                        IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString(),
+                        UserAgent = Request.Headers["User-Agent"].ToString(),
+                        Metadata = new Dictionary<string, object>
+                        {
+                            { "FileName", fileName },
+                            { "DownloadTime", DateTime.UtcNow }
+                        }
+                    };
+
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await _auditHelper.LogEventAsync(auditEvent);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex, "Failed to log audit event for file download: {FileName}", fileName);
+                        }
+                    });
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Unexpected error when preparing audit event for download: {FileName}", fileName);
                 }
 
                 var contentType = GetContentType(fileName);
@@ -395,6 +514,44 @@ namespace FileService.Controllers
                 catch (Exception notificationEx)
                 {
                     _logger.LogWarning(notificationEx, "Failed to send real-time notification for delete: {FileName}. File was deleted successfully.", fileName);
+                }
+
+                try
+                {
+                    var userIdForAudit = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
+                    var userEmailForAudit = (User.FindFirst(ClaimTypes.Email) ?? User.FindFirst("email"))?.Value ?? string.Empty;
+
+                    var auditEvent = new FileAuditEvent
+                    {
+                        UserId = userIdForAudit,
+                        UserEmail = userEmailForAudit,
+                        Action = "DELETE_FILE",
+                        ResourceId = fileName,
+                        Success = true,
+                        IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString(),
+                        UserAgent = Request.Headers["User-Agent"].ToString(),
+                        Metadata = new Dictionary<string, object>
+                        {
+                            { "FileName", fileName },
+                            { "DeletedAt", DateTime.UtcNow }
+                        }
+                    };
+
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await _auditHelper.LogEventAsync(auditEvent);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex, "Failed to log audit event for file delete: {FileName}", fileName);
+                        }
+                    });
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Unexpected error when preparing audit event for delete: {FileName}", fileName);
                 }
 
                 return Ok(new { message = _localizer["FileDeletedSuccessfully"] });

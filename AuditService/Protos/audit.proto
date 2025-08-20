@@ -1,0 +1,131 @@
+syntax = "proto3";
+
+option csharp_namespace = "AuditService.Protos";
+
+package audit;
+
+// Audit service definition
+service AuditGrpcService {
+  // Log một audit event
+  rpc LogEvent (AuditEventRequest) returns (AuditEventResponse);
+  
+  // Log nhiều audit events cùng lúc
+  rpc LogBatchEvents (AuditBatchRequest) returns (AuditBatchResponse);
+  
+  // Lấy audit logs theo query
+  rpc GetAuditLogs (AuditQueryRequest) returns (AuditLogsResponse);
+  
+  // Lấy audit log theo ID
+  rpc GetAuditLogById (AuditLogByIdRequest) returns (AuditLogResponse);
+  
+  // Cleanup old logs
+  rpc CleanupOldLogs (CleanupRequest) returns (CleanupResponse);
+}
+
+// Request để log một audit event
+message AuditEventRequest {
+  string user_id = 1;
+  string user_email = 2;
+  string action = 3;
+  string resource_type = 4;
+  string resource_id = 5;
+  string old_values = 6;
+  string new_values = 7;
+  string ip_address = 8;
+  string user_agent = 9;
+  bool success = 10;
+  string error_message = 11;
+  string metadata = 12;
+  string service_name = 13;
+  string request_id = 14;
+  string session_id = 15;
+  string timestamp = 16;
+}
+
+// Response cho audit event
+message AuditEventResponse {
+  bool success = 1;
+  string message = 2;
+  int64 audit_log_id = 3;
+}
+
+// Request để log nhiều audit events
+message AuditBatchRequest {
+  repeated AuditEventRequest events = 1;
+}
+
+// Response cho batch audit events
+message AuditBatchResponse {
+  bool success = 1;
+  string message = 2;
+  int32 processed_count = 3;
+}
+
+// Request để query audit logs
+message AuditQueryRequest {
+  string user_id = 1;
+  string action = 2;
+  string resource_type = 3;
+  string service_name = 4;
+  string from_date = 5;
+  string to_date = 6;
+  int32 page = 7;
+  int32 page_size = 8;
+  string sort_by = 9;
+  string sort_order = 10;
+}
+
+// Response cho audit logs query
+message AuditLogsResponse {
+  bool success = 1;
+  string message = 2;
+  repeated AuditLogData logs = 3;
+  int32 total_count = 4;
+  int32 page = 5;
+  int32 page_size = 6;
+}
+
+// Request để lấy audit log theo ID
+message AuditLogByIdRequest {
+  int64 id = 1;
+}
+
+// Response cho audit log
+message AuditLogResponse {
+  bool success = 1;
+  string message = 2;
+  AuditLogData audit_log = 3;
+}
+
+// Request để cleanup old logs
+message CleanupRequest {
+  int32 retention_days = 1;
+}
+
+// Response cho cleanup
+message CleanupResponse {
+  bool success = 1;
+  string message = 2;
+  int32 deleted_count = 3;
+}
+
+// Data structure cho audit log
+message AuditLogData {
+  int64 id = 1;
+  string user_id = 2;
+  string user_email = 3;
+  string action = 4;
+  string resource_type = 5;
+  string resource_id = 6;
+  string old_values = 7;
+  string new_values = 8;
+  string ip_address = 9;
+  string user_agent = 10;
+  bool success = 11;
+  string error_message = 12;
+  string metadata = 13;
+  string created_at = 14;
+  string service_name = 15;
+  string request_id = 16;
+  string session_id = 17;
+}

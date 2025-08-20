@@ -17,6 +17,7 @@ COPY EmailService/EmailService.csproj EmailService/
 COPY UserService/UserService.csproj UserService/
 COPY NotificationService/NotificationService.csproj NotificationService/
 COPY WorkerService/WorkerService.csproj WorkerService/
+COPY AuditService/AuditService.csproj AuditService/
 COPY Shared/Shared.csproj Shared/
 COPY nuget.config ./
 
@@ -28,7 +29,8 @@ RUN dotnet restore "Shared/Shared.csproj" && \
     dotnet restore "EmailService/EmailService.csproj" && \
     dotnet restore "UserService/UserService.csproj" && \
     dotnet restore "NotificationService/NotificationService.csproj" && \
-    dotnet restore "WorkerService/WorkerService.csproj"
+    dotnet restore "WorkerService/WorkerService.csproj" && \
+    dotnet restore "AuditService/AuditService.csproj"
 
 # Copy the rest of the source code
 COPY . .
@@ -40,7 +42,8 @@ RUN dotnet build "AuthService/AuthService.csproj" -c Release --no-restore && \
     dotnet build "EmailService/EmailService.csproj" -c Release --no-restore && \
     dotnet build "UserService/UserService.csproj" -c Release --no-restore && \
     dotnet build "NotificationService/NotificationService.csproj" -c Release --no-restore && \
-    dotnet build "WorkerService/WorkerService.csproj" -c Release --no-restore
+    dotnet build "WorkerService/WorkerService.csproj" -c Release --no-restore && \
+    dotnet build "AuditService/AuditService.csproj" -c Release --no-restore
 
 # Publish all projects
 RUN dotnet publish "AuthService/AuthService.csproj" -c Release -o /app/publish/AuthService && \
@@ -49,14 +52,15 @@ RUN dotnet publish "AuthService/AuthService.csproj" -c Release -o /app/publish/A
     dotnet publish "EmailService/EmailService.csproj" -c Release -o /app/publish/EmailService && \
     dotnet publish "UserService/UserService.csproj" -c Release -o /app/publish/UserService && \
     dotnet publish "NotificationService/NotificationService.csproj" -c Release -o /app/publish/NotificationService && \
-    dotnet publish "WorkerService/WorkerService.csproj" -c Release -o /app/publish/WorkerService
+    dotnet publish "WorkerService/WorkerService.csproj" -c Release -o /app/publish/WorkerService && \
+    dotnet publish "AuditService/AuditService.csproj" -c Release -o /app/publish/AuditService
 
 # Final stage: Copy published applications and configuration files
 FROM base AS final
 WORKDIR /app
 
 # Create logs directories for all services
-RUN mkdir -p /app/logs /app/AuthService/logs /app/FileService/logs /app/UserService/logs /app/EmailService/logs /app/NotificationService/logs
+RUN mkdir -p /app/logs /app/AuthService/logs /app/FileService/logs /app/UserService/logs /app/EmailService/logs /app/NotificationService/logs /app/AuditService/logs
 
 # Copy published applications
 COPY --from=build /app/publish/AuthService /app/AuthService
@@ -66,6 +70,7 @@ COPY --from=build /app/publish/EmailService /app/EmailService
 COPY --from=build /app/publish/UserService /app/UserService
 COPY --from=build /app/publish/NotificationService /app/NotificationService
 COPY --from=build /app/publish/WorkerService /app/WorkerService
+COPY --from=build /app/publish/AuditService /app/AuditService
 
 # Copy configuration files for AuthService
 COPY AuthService/appsettings.json /app/AuthService/appsettings.json
@@ -86,6 +91,10 @@ COPY UserService/appsettings.Development.json /app/UserService/appsettings.Devel
 # Copy configuration files for NotificationService
 COPY NotificationService/appsettings.json /app/NotificationService/appsettings.json
 COPY NotificationService/appsettings.Development.json /app/NotificationService/appsettings.Development.json
+
+# Copy configuration files for AuditService
+COPY AuditService/appsettings.json /app/AuditService/appsettings.json
+COPY AuditService/appsettings.Development.json /app/AuditService/appsettings.Development.json
 
 # Copy ocelot.json for GatewayApi
 COPY GatewayApi/ocelot.json /app/GatewayApi/ocelot.json

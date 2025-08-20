@@ -66,6 +66,9 @@ namespace AuthService.Controllers
                     return BadRequest(new { success = false, message = "Validation failed", errors });
                 }
 
+                dto.IpAddress = HttpContext.GetClientIpAddress();
+                dto.UserAgent = Request.Headers["User-Agent"].ToString();
+                
                 _loggingService.Information("Login attempt for email: {Email}", dto.Email);
                 
                 var result = await _auth.LoginAsync(dto);
@@ -100,11 +103,11 @@ namespace AuthService.Controllers
                 var result = await _googleAuth.LoginWithGoogleAsync(dto);
                 if (result.require2FA)
                 {
-                    _loggingService.Information("Google login requires 2FA for user: {UserId}", result.userId);
+                    _loggingService.Information("Google login requires 2FA for user: {UserId}", result.userId ?? Guid.Empty);
                     return Ok(new { success = false, require2FA = true, userId = result.userId, message = result.message });
                 }
                 
-                _loggingService.Information("Google login successful for user: {UserId}", result.userId);
+                _loggingService.Information("Google login successful for user: {UserId}", result.userId ?? Guid.Empty);
                 return Ok(new { success = true, token = result.token, message = result.message, redirectUrl = $"{_config["Frontend:BaseUrl"]}/admin/index.html" });
             }
             catch (Exceptions.InvalidGoogleTokenException ex)
@@ -453,7 +456,7 @@ namespace AuthService.Controllers
                     return Ok(new { success = false, require2FA = true, userId = dto.UserId, message = result.message });
                 }
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 return StatusCode(500, new { message = "Internal server error" });
             }

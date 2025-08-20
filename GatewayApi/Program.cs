@@ -3,6 +3,8 @@ using Ocelot.Middleware;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using Shared.Services;
+using GatewayApi;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -48,6 +50,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization();
 
+// builder.Services.AddHttpClient<IAuditHelper, AuditHelper>();
+
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
@@ -62,6 +66,8 @@ app.UseCors("AllowFrontend");
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+// app.UseMiddleware<GatewayAuditMiddleware>();
 
 // Configure Ocelot
 await app.UseOcelot();

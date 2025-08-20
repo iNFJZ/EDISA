@@ -231,6 +231,33 @@ services:
       - microservice-network
     command: dotnet NotificationService.dll
 
+  audit-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    platform: linux/amd64
+    container_name: audit-service
+    working_dir: /app/AuditService
+    ports:
+      - "5008:80"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:80
+      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=audit_db;Username=postgres;Password=123456
+      - RabbitMQ__HostName=rabbitmq
+      - RabbitMQ__Port=5672
+      - RabbitMQ__UserName=guest
+      - RabbitMQ__Password=guest
+      - RabbitMQ__VirtualHost=/
+      - Elasticsearch__Url=http://elasticsearch:9200
+    depends_on:
+      - postgres
+      - rabbitmq
+      - elasticsearch
+    networks:
+      - microservice-network
+    command: dotnet AuditService.dll
+
   grpc-server:
     build:
       context: .
@@ -288,6 +315,7 @@ volumes:
   minio-data:
   redis-data:
   elasticsearch-data:
+  audit-data:
 
 networks:
   microservice-network:

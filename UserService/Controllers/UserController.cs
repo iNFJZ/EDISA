@@ -22,9 +22,6 @@ public class UserController : ControllerBase
         _loggingService = loggingService;
     }
 
-    /// <summary>
-    /// Get all users with pagination and filtering
-    /// </summary>
     [HttpGet]
     public async Task<IActionResult> GetUsers(
         [FromQuery] int page = 1,
@@ -78,9 +75,6 @@ public class UserController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Get user by ID
-    /// </summary>
     [HttpGet("{id}")]
     public async Task<IActionResult> GetUser(Guid id)
     {
@@ -107,9 +101,6 @@ public class UserController : ControllerBase
 
 
 
-    /// <summary>
-    /// Get user by email
-    /// </summary>
     [HttpGet("email/{email}")]
     public async Task<IActionResult> GetUserByEmail(string email)
     {
@@ -129,9 +120,6 @@ public class UserController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Get user by username
-    /// </summary>
     [HttpGet("username/{username}")]
     public async Task<IActionResult> GetUserByUsername(string username)
     {
@@ -151,9 +139,6 @@ public class UserController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Update user
-    /// </summary>
     [HttpPut("{id}")]
     public async Task<IActionResult> UpdateUser(Guid id, [FromBody] UpdateUserDto dto)
     {   
@@ -191,9 +176,6 @@ public class UserController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Delete user (soft delete)
-    /// </summary>
     [HttpDelete("{id}")]
     public async Task<IActionResult> DeleteUser(Guid id)
     {
@@ -218,9 +200,6 @@ public class UserController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Restore deleted user
-    /// </summary>
     [HttpPatch("{id}/restore")]
     public async Task<IActionResult> RestoreUser(Guid id)
     {
@@ -245,9 +224,6 @@ public class UserController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Get user statistics
-    /// </summary>
     [HttpGet("statistics")]
     public async Task<IActionResult> GetUserStatistics()
     {
@@ -261,10 +237,7 @@ public class UserController : ControllerBase
             return StatusCode(500, new { success = false, message = "An error occurred while fetching statistics", error = ex.Message });
         }
     }
-
-    /// <summary>
-    /// Get deleted users
-    /// </summary>
+    
     [HttpGet("deleted")]
     public async Task<IActionResult> GetDeletedUsers(
         [FromQuery] int page = 1,

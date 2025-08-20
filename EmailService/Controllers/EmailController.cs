@@ -14,15 +14,18 @@ namespace EmailService.Controllers
         private readonly IEmailTemplateService _emailTemplateService;
         private readonly IMapper _mapper;
         private readonly ILoggingService _loggingService;
+        private readonly Shared.Services.IAuditHelper _auditHelper;
 
         public EmailController(
             IEmailTemplateService emailTemplateService,
             IMapper mapper,
-            ILoggingService loggingService)
+            ILoggingService loggingService,
+            Shared.Services.IAuditHelper auditHelper)
         {
             _emailTemplateService = emailTemplateService;
             _mapper = mapper;
             _loggingService = loggingService;
+            _auditHelper = auditHelper;
         }
 
         [HttpGet]
@@ -116,6 +119,33 @@ namespace EmailService.Controllers
                 var createdTemplate = await _emailTemplateService.CreateTemplateAsync(template);
                 var createdDto = _mapper.Map<EmailTemplateDto>(createdTemplate);
 
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        var auditEvent = new Shared.AuditModels.AuditEvent
+                        {
+                            UserId = User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value,
+                            UserEmail = User?.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value,
+                            Action = "CREATE_EMAIL_TEMPLATE",
+                            ResourceType = "EmailTemplate",
+                            ResourceId = createdDto.Id.ToString(),
+                            OldValues = null,
+                            NewValues = createdDto,
+                            IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString(),
+                            UserAgent = Request.Headers["User-Agent"].ToString(),
+                            Success = true,
+                            ServiceName = "EmailService",
+                            RequestId = HttpContext.TraceIdentifier
+                        };
+                        await _auditHelper.LogEventAsync(auditEvent);
+                    }
+                    catch (Exception auditEx)
+                    {
+                        _loggingService.Warning("Failed to log audit event for email template creation", auditEx);
+                    }
+                });
+
                 _loggingService.Information("CreateTemplate completed successfully. Created ID: {Id}, Name: {Name}, Language: {Language}", 
                     createdDto.Id, createdDto.Name, createdDto.Language);
                 
@@ -156,6 +186,33 @@ namespace EmailService.Controllers
                 var updatedTemplate = await _emailTemplateService.UpdateTemplateAsync(existingTemplate);
                 var updatedDto = _mapper.Map<EmailTemplateDto>(updatedTemplate);
 
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        var auditEvent = new Shared.AuditModels.AuditEvent
+                        {
+                            UserId = User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value,
+                            UserEmail = User?.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value,
+                            Action = "UPDATE_EMAIL_TEMPLATE",
+                            ResourceType = "EmailTemplate",
+                            ResourceId = updatedDto.Id.ToString(),
+                            OldValues = _mapper.Map<EmailTemplateDto>(existingTemplate),
+                            NewValues = updatedDto,
+                            IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString(),
+                            UserAgent = Request.Headers["User-Agent"].ToString(),
+                            Success = true,
+                            ServiceName = "EmailService",
+                            RequestId = HttpContext.TraceIdentifier
+                        };
+                        await _auditHelper.LogEventAsync(auditEvent);
+                    }
+                    catch (Exception auditEx)
+                    {
+                        _loggingService.Warning("Failed to log audit event for email template update", auditEx);
+                    }
+                });
+
                 _loggingService.Information("UpdateTemplate completed successfully for ID: {Id}, Name: {Name}, Language: {Language}", 
                     updatedDto.Id, updatedDto.Name, updatedDto.Language);
                 
@@ -182,7 +239,35 @@ namespace EmailService.Controllers
                     return NotFound($"Email template not found with ID: {id}");
                 }
 
-                await _emailTemplateService.DeleteTemplateAsync(id);
+                    await _emailTemplateService.DeleteTemplateAsync(id);
+                
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        var auditEvent = new Shared.AuditModels.AuditEvent
+                        {
+                            UserId = User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value,
+                            UserEmail = User?.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value,
+                            Action = "DELETE_EMAIL_TEMPLATE",
+                            ResourceType = "EmailTemplate",
+                            ResourceId = id.ToString(),
+                            OldValues = _mapper.Map<EmailTemplateDto>(template),
+                            NewValues = null,
+                            IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString(),
+                            UserAgent = Request.Headers["User-Agent"].ToString(),
+                            Success = true,
+                            ServiceName = "EmailService",
+                            RequestId = HttpContext.TraceIdentifier
+                        };
+                        await _auditHelper.LogEventAsync(auditEvent);
+                    }
+                    catch (Exception auditEx)
+                    {
+                        _loggingService.Warning("Failed to log audit event for email template deletion", auditEx);
+                    }
+                });
+
                 _loggingService.Information("DeleteTemplate completed successfully for ID: {Id}, Name: {Name}", id, template.Name);
                 return NoContent();
             }
@@ -208,6 +293,34 @@ namespace EmailService.Controllers
                 }
 
                 await _emailTemplateService.RestoreTemplateAsync(id);
+
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await _auditHelper.LogEventAsync(new Shared.AuditModels.AuditEvent
+                        {
+                            UserId = User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value,
+                            UserEmail = User?.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value,
+                            Action = "RESTORE_EMAIL_TEMPLATE",
+                            ResourceType = "EmailTemplate",
+                            ResourceId = id.ToString(),
+                            OldValues = _mapper.Map<EmailTemplateDto>(template),
+                            NewValues = null,
+                            IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString(),
+                            UserAgent = Request.Headers["User-Agent"].ToString(),
+                            Success = true,
+                            ServiceName = "EmailService",
+                            RequestId = HttpContext.TraceIdentifier,
+                            Timestamp = DateTime.UtcNow
+                        });
+                    }
+                    catch (Exception auditEx)
+                    {
+                        _loggingService.Warning("Failed to log audit event for email template restoration", auditEx);
+                    }
+                });
+
                 _loggingService.Information("RestoreTemplate completed successfully for ID: {Id}, Name: {Name}", id, template.Name);
                 return NoContent();
             }

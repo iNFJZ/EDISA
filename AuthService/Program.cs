@@ -87,6 +87,8 @@ builder.Services.AddHttpClient<IGoogleAuthService, GoogleAuthService>();
 builder.Services.AddHttpClient<IHunterEmailVerifierService, HunterEmailVerifierService>();
 builder.Services.AddHttpClient<INotificationService, NotificationService>();
 
+builder.Services.AddHttpClient<IAuditHelper, AuditHelper>();
+
 builder.Services.AddScoped<IGoogleAuthService, GoogleAuthService>();
 
 builder.Services.AddAuthentication("Bearer")
@@ -184,7 +186,8 @@ builder.Services.AddScoped<IAuthService, AuthService.Services.AuthService>(sp =>
         sp.GetRequiredService<IEmailMessageService>(),
         sp.GetRequiredService<IConfiguration>(),
         sp.GetRequiredService<IHunterEmailVerifierService>(),
-        sp.GetRequiredService<INotificationService>()
+        sp.GetRequiredService<INotificationService>(),
+        sp.GetRequiredService<IAuditHelper>()
     )
 );
 

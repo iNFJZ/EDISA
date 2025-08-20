@@ -4,7 +4,7 @@ namespace FileService.DTOs
 {
     public class UploadFileRequest
     {
-        public required List<IFormFile> Files { get; set; }
+        public List<IFormFile>? Files { get; set; }
         public string? Description { get; set; }
     }
 } 
