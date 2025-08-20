@@ -9,6 +9,8 @@ using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using Microsoft.Extensions.Localization;
 using System.Globalization;
+using Shared.Services;
+using Shared.AuditModels;
 
 var builder = WebApplication.CreateBuilder(new WebApplicationOptions {
     Args = args,
@@ -20,17 +22,6 @@ builder.Configuration
     .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
     .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", optional: true, reloadOnChange: true)
     .AddEnvironmentVariables();
-
-builder.Host.ConfigureAppConfiguration((hostingContext, config) =>
-{
-    var env = hostingContext.HostingEnvironment;
-    config.AddJsonFile($"appsettings.json", optional: false, reloadOnChange: true);
-    if (env.IsDevelopment())
-    {
-        config.AddJsonFile($"appsettings.Development.json", optional: true, reloadOnChange: true);
-    }
-    config.AddEnvironmentVariables();
-});
 
 // Configure Kestrel to listen on port 80 for Docker and 5002 for HTTP/1.1 and 5003 for HTTP/2
 builder.WebHost.ConfigureKestrel(options =>
@@ -157,6 +148,9 @@ builder.Services.AddScoped<IFileValidationService, FileValidationService>();
 builder.Services.AddScoped<IEmailMessageService, EmailMessageService>();
 builder.Services.AddHttpClient<INotificationService, NotificationService>();
 
+// Add Audit Helper
+builder.Services.AddHttpClient<IAuditHelper, AuditHelper>();
+
 // Add HttpClient for token validation with timeout
 builder.Services.AddHttpClient("AuthService", client =>
 {
@@ -180,9 +174,7 @@ app.UseAuthorization();
 
 app.UseTokenValidation();
 
-// Use localization middleware
-var locOptions = app.Services.GetService<Microsoft.Extensions.Options.IOptions<RequestLocalizationOptions>>();
-app.UseRequestLocalization(locOptions?.Value);
+app.UseRequestLocalization();
 
 app.MapControllers();
 app.MapGrpcService<FileService.Services.FileGrpcService>();

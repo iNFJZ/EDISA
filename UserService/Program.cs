@@ -81,6 +81,8 @@ builder.Services.AddScoped<INotificationHelper, NotificationHelper>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<ILanguageService, LanguageServiceImplementation>();
 
+builder.Services.AddHttpClient<IAuditHelper, AuditHelper>();
+
 builder.Services.AddLoggingService();
 
 builder.Services.AddAuthentication("Bearer")

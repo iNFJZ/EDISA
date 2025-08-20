@@ -66,6 +66,9 @@ namespace AuthService.Controllers
                     return BadRequest(new { success = false, message = "Validation failed", errors });
                 }
 
+                dto.IpAddress = HttpContext.GetClientIpAddress();
+                dto.UserAgent = Request.Headers["User-Agent"].ToString();
+                
                 _loggingService.Information("Login attempt for email: {Email}", dto.Email);
                 
                 var result = await _auth.LoginAsync(dto);
@@ -100,11 +103,11 @@ namespace AuthService.Controllers
                 var result = await _googleAuth.LoginWithGoogleAsync(dto);
                 if (result.require2FA)
                 {
-                    _loggingService.Information("Google login requires 2FA for user: {UserId}", result.userId);
+                    _loggingService.Information("Google login requires 2FA for user: {UserId}", result.userId ?? Guid.Empty);
                     return Ok(new { success = false, require2FA = true, userId = result.userId, message = result.message });
                 }
                 
-                _loggingService.Information("Google login successful for user: {UserId}", result.userId);
+                _loggingService.Information("Google login successful for user: {UserId}", result.userId ?? Guid.Empty);
                 return Ok(new { success = true, token = result.token, message = result.message, redirectUrl = $"{_config["Frontend:BaseUrl"]}/admin/index.html" });
             }
             catch (Exceptions.InvalidGoogleTokenException ex)
@@ -453,59 +456,10 @@ namespace AuthService.Controllers
                     return Ok(new { success = false, require2FA = true, userId = dto.UserId, message = result.message });
                 }
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 return StatusCode(500, new { message = "Internal server error" });
             }
         }
-
-        [HttpGet("test-logging")]
-        public IActionResult TestLogging()
-        {
-            try
-            {
-                _loggingService.Debug("Debug message test");
-                _loggingService.Information("Information message test");
-                _loggingService.Warning("Warning message test");
-                _loggingService.Error("Error message test", new Exception("Test exception"));
-                
-                return Ok(new { 
-                    message = "Logging test completed", 
-                    timestamp = DateTime.UtcNow,
-                    logs = new[] { "Debug", "Information", "Warning", "Error" }
-                });
-            }
-            catch (Exception ex)
-            {
-                _loggingService.Fatal("Fatal error in test logging", ex);
-                return StatusCode(500, new { message = "Logging test failed", error = ex.Message });
-            }
-        }
-
-        [HttpGet("test-logging-public")]
-        [AllowAnonymous]
-        public IActionResult TestLoggingPublic()
-        {
-            try
-            {
-                _loggingService.Debug("Public Debug message test");
-                _loggingService.Information("Public Information message test");
-                _loggingService.Warning("Public Warning message test");
-                _loggingService.Error("Public Error message test", new Exception("Public Test exception"));
-                
-                return Ok(new { 
-                    message = "Public Logging test completed", 
-                    timestamp = DateTime.UtcNow,
-                    logs = new[] { "Debug", "Information", "Warning", "Error" }
-                });
-            }
-            catch (Exception ex)
-            {
-                _loggingService.Fatal("Public Fatal error in test logging", ex);
-                return StatusCode(500, new { message = "Public Logging test failed", error = ex.Message });
-            }
-        }
-
-
     }
 }

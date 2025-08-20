@@ -14,5 +14,7 @@ namespace AuthService.DTOs
         
         public string? Language { get; set; }
         public string? OtpCode { get; set; }
+        public string? IpAddress { get; set; }
+        public string? UserAgent { get; set; }
     }
 }

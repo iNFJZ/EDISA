@@ -13,6 +13,8 @@ using System.Security.Cryptography;
 using System.Text;
 using Shared.EmailModels;
 using Shared.LanguageService;
+using Shared.Services;
+using Shared.AuditModels;
 using OtpNet;
 using System.Drawing;
 using QRCoder;
@@ -33,6 +35,7 @@ namespace AuthService.Services
         private readonly int _resetPasswordTokenExpiryMinutes;
         private readonly IHunterEmailVerifierService _emailVerifierService;
         private readonly INotificationService _notificationService;
+        private readonly IAuditHelper _auditHelper;
 
         public AuthService(
             IUserRepository repo, 
@@ -43,7 +46,8 @@ namespace AuthService.Services
             IEmailMessageService emailMessageService,
             IConfiguration config,
             IHunterEmailVerifierService emailVerifierService,
-            INotificationService notificationService)
+            INotificationService notificationService,
+            IAuditHelper auditHelper)
         {
             _repo = repo;
             _sessionService = sessionService;
@@ -54,6 +58,7 @@ namespace AuthService.Services
             _config = config;
             _emailVerifierService = emailVerifierService;
             _notificationService = notificationService;
+            _auditHelper = auditHelper;
             _maxFailedLoginAttempts = int.Parse(_config["AuthSettings:MaxFailedLoginAttempts"] ?? "5");
             _accountLockMinutes = int.Parse(_config["AuthSettings:AccountLockMinutes"] ?? "30");
             _resetPasswordTokenExpiryMinutes = int.Parse(_config["AuthSettings:ResetPasswordTokenExpiryMinutes"] ?? "60");
@@ -116,7 +121,7 @@ namespace AuthService.Services
                 if (!acceptSuggestedUsername)
                 {
                     var suggestedUsername = await GenerateUniqueUsernameAsync(sanitizedUsername);
-                    return (null, sanitizedUsername, suggestedUsername, "USERNAME_ALREADY_EXISTS", "usernameSuggestionMessage");
+                    return (string.Empty, sanitizedUsername, suggestedUsername, "USERNAME_ALREADY_EXISTS", "usernameSuggestionMessage");
                 }
                 else
                 {
@@ -161,7 +166,7 @@ namespace AuthService.Services
                         VerifyLink = verifyLink,
                         Language = language
                     });
-                    return (token, sanitizedUsername, null, null, null);
+                    return (token, sanitizedUsername, string.Empty, string.Empty, string.Empty);
         }
 
         private async Task<string> GenerateUniqueUsernameAsync(string baseUsername)
@@ -312,14 +317,14 @@ namespace AuthService.Services
         public async Task<string> GetEmailFromResetTokenAsync(string token)
         {
             if (string.IsNullOrWhiteSpace(token))
-                return null;
+                return string.Empty;
 
             var userId = await _sessionService.GetUserIdFromResetTokenAsync(token);
             if (!userId.HasValue)
-                return null;
+                return string.Empty;
 
             var user = await _repo.GetByIdAsync(userId.Value);
-            return user?.Email;
+            return user?.Email ?? string.Empty;
         }
 
         private bool VerifyOtpCode(string otpCode, string twoFactorSecret)
@@ -341,6 +346,46 @@ namespace AuthService.Services
         public async Task<LoginResultDto> LoginAsync(LoginDto dto)
         {
             var sanitizedEmail = dto.Email?.Trim().ToLowerInvariant();
+            
+            try
+            {
+                return await PerformLoginAsync(dto, sanitizedEmail ?? string.Empty);
+            }
+            catch (Exception ex)
+            {
+                var auditEvent = new AuthAuditEvent
+                {
+                    UserEmail = sanitizedEmail,
+                    Action = "LOGIN_FAILED",
+                    Success = false,
+                    ErrorMessage = ex.Message,
+                    IpAddress = dto.IpAddress,
+                    UserAgent = dto.UserAgent,
+                    Metadata = new Dictionary<string, object>
+                    {
+                        { "FailureReason", ex.GetType().Name },
+                        { "Language", dto.Language ?? "en" }
+                    }
+                };
+
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await _auditHelper.LogEventAsync(auditEvent);
+                    }
+                    catch (Exception auditEx)
+                    {
+                        _logger.LogWarning(auditEx, "Failed to log audit event for failed login: {Email}", sanitizedEmail);
+                    }
+                });
+
+                throw;
+            }
+        }
+
+        private async Task<LoginResultDto> PerformLoginAsync(LoginDto dto, string sanitizedEmail)
+        {
             if (string.IsNullOrWhiteSpace(sanitizedEmail))
                 throw new AuthException("REQUIRED_FIELD_MISSING", "Email is required");
             var user = await _repo.GetByEmailIncludeDeletedAsync(sanitizedEmail);
@@ -402,10 +447,50 @@ namespace AuthService.Services
             {
                 if (string.IsNullOrWhiteSpace(dto.OtpCode))
                 {
+                    // Audit: login requires 2FA
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var auditEvent = new AuthAuditEvent
+                            {
+                                UserId = user.Id.ToString(),
+                                UserEmail = user.Email,
+                                Action = "LOGIN_2FA_REQUIRED",
+                                ResourceId = user.Id.ToString(),
+                                Success = false,
+                                ErrorMessage = "2FA code required",
+                                IpAddress = dto.IpAddress,
+                                UserAgent = dto.UserAgent
+                            };
+                            await _auditHelper.LogEventAsync(auditEvent);
+                        }
+                        catch { }
+                    });
                     return new LoginResultDto { Require2FA = true, UserId = user.Id, Message = "2FA code required" };
                 }
                 if (!VerifyOtpCode(dto.OtpCode, user.TwoFactorSecret))
                 {
+                    // Audit: login 2FA failed
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var auditEvent = new AuthAuditEvent
+                            {
+                                UserId = user.Id.ToString(),
+                                UserEmail = user.Email,
+                                Action = "LOGIN_2FA_FAILED",
+                                ResourceId = user.Id.ToString(),
+                                Success = false,
+                                ErrorMessage = "Invalid 2FA code",
+                                IpAddress = dto.IpAddress,
+                                UserAgent = dto.UserAgent
+                            };
+                            await _auditHelper.LogEventAsync(auditEvent);
+                        }
+                        catch { }
+                    });
                     return new LoginResultDto { Require2FA = true, UserId = user.Id, Message = "Invalid 2FA code" };
                 }
             }
@@ -424,6 +509,36 @@ namespace AuthService.Services
                 "Welcome back! You have successfully logged in.",
                 "info"
             );
+
+            var auditEvent = new AuthAuditEvent
+            {
+                UserId = user.Id.ToString(),
+                UserEmail = user.Email,
+                Action = "LOGIN",
+                ResourceId = user.Id.ToString(),
+                Success = true,
+                IpAddress = dto.IpAddress,
+                UserAgent = dto.UserAgent,
+                SessionId = sessionId,
+                Metadata = new Dictionary<string, object>
+                {
+                    { "LoginProvider", user.LoginProvider ?? "Local" },
+                    { "TwoFactorUsed", user.TwoFactorEnabled && !string.IsNullOrEmpty(user.TwoFactorSecret) },
+                    { "Language", dto.Language ?? "en" }
+                }
+            };
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await _auditHelper.LogEventAsync(auditEvent);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to log audit event for successful login: {UserId}", user.Id);
+                }
+            });
 
             return new LoginResultDto { Token = token, Require2FA = false, UserId = user.Id, Message = "Login successful" };
         }
@@ -444,6 +559,35 @@ namespace AuthService.Services
                 await _sessionService.BlacklistTokenAsync(token, tokenExpiry);
                 
                 await _sessionService.SetUserLoginStatusAsync(userId.Value, false);
+
+                if (user != null)
+                {
+                    var auditEvent = new AuthAuditEvent
+                    {
+                        UserId = user.Id.ToString(),
+                        UserEmail = user.Email,
+                        Action = "LOGOUT",
+                        ResourceId = user.Id.ToString(),
+                        Success = true,
+                        Metadata = new Dictionary<string, object>
+                        {
+                            { "TokenLength", token.Length },
+                            { "LogoutTime", DateTime.UtcNow }
+                        }
+                    };
+    
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await _auditHelper.LogEventAsync(auditEvent);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex, "Failed to log audit event for logout: {UserId}", user.Id);
+                        }
+                    });
+                }
                 
                 return true;
             }
@@ -506,7 +650,7 @@ namespace AuthService.Services
         public async Task<bool> ForgotPasswordAsync(ForgotPasswordDto dto, string clientIp)
         {
             var sanitizedEmail = dto.Email?.Trim().ToLowerInvariant();
-            var user = await _repo.GetByEmailIncludeDeletedAsync(sanitizedEmail);
+            var user = await _repo.GetByEmailIncludeDeletedAsync(sanitizedEmail ?? string.Empty);
             if (user == null)
                 throw new InvalidCredentialsException();
 
@@ -537,114 +681,211 @@ namespace AuthService.Services
                 IpAddress = clientIp ?? "Unknown"
             });
 
+            // Audit: FORGOT_PASSWORD_REQUEST
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var auditEvent = new AuthAuditEvent
+                    {
+                        UserId = user.Id.ToString(),
+                        UserEmail = user.Email,
+                        Action = "FORGOT_PASSWORD_REQUEST",
+                        ResourceId = user.Id.ToString(),
+                        Success = true,
+                        IpAddress = clientIp,
+                        Metadata = new Dictionary<string, object>
+                        {
+                            { "RequestedAt", DateTime.UtcNow },
+                            { "Language", dto.Language ?? "en" }
+                        }
+                    };
+                    await _auditHelper.LogEventAsync(auditEvent);
+                }
+                catch { }
+            });
+
             return true;
         }
 
         public async Task<bool> ResetPasswordAsync(ResetPasswordDto dto)
         {
-            if (string.IsNullOrWhiteSpace(dto.Token))
-                throw new AuthException("REQUIRED_FIELD_MISSING", "Reset token is required");
-            
-            if (string.IsNullOrWhiteSpace(dto.NewPassword))
-                throw new AuthException("REQUIRED_FIELD_MISSING", "New password is required");
-            
-            if (dto.NewPassword.Length < 6)
-                throw new AuthException("WEAK_PASSWORD", "New password must be at least 6 characters");
-            
-            if (!System.Text.RegularExpressions.Regex.IsMatch(dto.NewPassword, @"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{6,}$"))
-                throw new AuthException("WEAK_PASSWORD", "New password must contain at least one uppercase letter, one lowercase letter, and one number");
-            
-            if (string.IsNullOrWhiteSpace(dto.ConfirmPassword))
-                throw new AuthException("REQUIRED_FIELD_MISSING", "Confirm password is required");
-            
-            if (dto.NewPassword != dto.ConfirmPassword)
-                throw new AuthException("PASSWORD_MISMATCH", "Passwords do not match");
-            
-            var userId = await _sessionService.GetUserIdFromResetTokenAsync(dto.Token);
-            if (!userId.HasValue)
-                throw new InvalidResetTokenException();
-
-            var user = await _repo.GetByIdAsync(userId.Value);
-            if (user == null)
-                throw new UserNotFoundException(userId.Value);
-
-            user.PasswordHash = _passwordService.HashPassword(dto.NewPassword);
-            user.UpdatedAt = DateTime.UtcNow;
-
-            await _repo.UpdateAsync(user);
-
-            await _sessionService.RemoveResetTokenAsync(dto.Token);
-
-            await _sessionService.RemoveAllUserSessionsAsync(user.Id);
-            await _sessionService.RemoveAllActiveTokensForUserAsync(user.Id);
-            await _sessionService.SetUserLoginStatusAsync(user.Id, false);
-
-            await _emailMessageService.PublishChangePasswordNotificationAsync(new ChangePasswordEmailEvent
+            try
             {
-                To = user.Email,
-                Username = user.FullName ?? user.Username,
-                ChangeAt = DateTime.UtcNow,
-                Language = dto.Language ?? "en"
-            });
+                if (string.IsNullOrWhiteSpace(dto.Token))
+                    throw new AuthException("REQUIRED_FIELD_MISSING", "Reset token is required");
+                if (string.IsNullOrWhiteSpace(dto.NewPassword))
+                    throw new AuthException("REQUIRED_FIELD_MISSING", "New password is required");
+                if (dto.NewPassword.Length < 6)
+                    throw new AuthException("WEAK_PASSWORD", "New password must be at least 6 characters");
+                if (!System.Text.RegularExpressions.Regex.IsMatch(dto.NewPassword, @"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{6,}$"))
+                    throw new AuthException("WEAK_PASSWORD", "New password must contain at least one uppercase letter, one lowercase letter, and one number");
+                if (string.IsNullOrWhiteSpace(dto.ConfirmPassword))
+                    throw new AuthException("REQUIRED_FIELD_MISSING", "Confirm password is required");
+                if (dto.NewPassword != dto.ConfirmPassword)
+                    throw new AuthException("PASSWORD_MISMATCH", "Passwords do not match");
 
-            return true;
+                var userId = await _sessionService.GetUserIdFromResetTokenAsync(dto.Token);
+                if (!userId.HasValue)
+                    throw new InvalidResetTokenException();
+
+                var user = await _repo.GetByIdAsync(userId.Value);
+                if (user == null)
+                    throw new UserNotFoundException(userId.Value);
+
+                user.PasswordHash = _passwordService.HashPassword(dto.NewPassword);
+                user.UpdatedAt = DateTime.UtcNow;
+                await _repo.UpdateAsync(user);
+
+                await _sessionService.RemoveResetTokenAsync(dto.Token);
+                await _sessionService.RemoveAllUserSessionsAsync(user.Id);
+                await _sessionService.RemoveAllActiveTokensForUserAsync(user.Id);
+                await _sessionService.SetUserLoginStatusAsync(user.Id, false);
+
+                await _emailMessageService.PublishChangePasswordNotificationAsync(new ChangePasswordEmailEvent
+                {
+                    To = user.Email,
+                    Username = user.FullName ?? user.Username,
+                    ChangeAt = DateTime.UtcNow,
+                    Language = dto.Language ?? "en"
+                });
+
+                // Audit: RESET_PASSWORD
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        var auditEvent = new AuthAuditEvent
+                        {
+                            UserId = user.Id.ToString(),
+                            UserEmail = user.Email,
+                            Action = "RESET_PASSWORD",
+                            ResourceId = user.Id.ToString(),
+                            Success = true
+                        };
+                        await _auditHelper.LogEventAsync(auditEvent);
+                    }
+                    catch { }
+                });
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                // Audit failure
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        var userId = await _sessionService.GetUserIdFromResetTokenAsync(dto.Token);
+                        string? uid = userId.HasValue ? userId.Value.ToString() : null;
+                        var auditEvent = new AuthAuditEvent
+                        {
+                            UserId = uid,
+                            UserEmail = null,
+                            Action = "RESET_PASSWORD",
+                            ResourceId = uid,
+                            Success = false,
+                            ErrorMessage = ex.Message
+                        };
+                        await _auditHelper.LogEventAsync(auditEvent);
+                    }
+                    catch { }
+                });
+                throw;
+            }
         }
 
         public async Task<bool> ChangePasswordAsync(Guid userId, ChangePasswordDto dto)
         {
-            var user = await _repo.GetByIdAsync(userId);
-            if (user == null)
-                throw new UserNotFoundException(userId);
-
-            if (string.IsNullOrWhiteSpace(dto.CurrentPassword))
-                throw new AuthException("REQUIRED_FIELD_MISSING", "Current password is required");
-            
-            if (dto.CurrentPassword.Length < 6)
-                throw new AuthException("WEAK_PASSWORD", "Current password must be at least 6 characters");
-
-            if (string.IsNullOrEmpty(user.PasswordHash) || !_passwordService.VerifyPassword(dto.CurrentPassword, user.PasswordHash))
-                throw new PasswordMismatchException();
-
-            if (string.IsNullOrWhiteSpace(dto.NewPassword))
-                throw new AuthException("REQUIRED_FIELD_MISSING", "New password is required");
-            
-            if (dto.NewPassword.Length < 6)
-                throw new AuthException("WEAK_PASSWORD", "New password must be at least 6 characters");
-            
-            if (!System.Text.RegularExpressions.Regex.IsMatch(dto.NewPassword, @"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{6,}$"))
-                throw new AuthException("WEAK_PASSWORD", "New password must contain at least one uppercase letter, one lowercase letter, and one number");
-            
-            if (string.IsNullOrWhiteSpace(dto.ConfirmPassword))
-                throw new AuthException("REQUIRED_FIELD_MISSING", "Confirm password is required");
-            
-            if (dto.NewPassword != dto.ConfirmPassword)
-                throw new AuthException("PASSWORD_MISMATCH", "Passwords do not match");
-
-            user.PasswordHash = _passwordService.HashPassword(dto.NewPassword);
-            user.UpdatedAt = DateTime.UtcNow;
-
-            await _repo.UpdateAsync(user);
-
-            await _sessionService.RemoveAllUserSessionsAsync(user.Id);
-            await _sessionService.RemoveAllActiveTokensForUserAsync(user.Id);
-            await _sessionService.SetUserLoginStatusAsync(user.Id, false);
-
-            await _emailMessageService.PublishChangePasswordNotificationAsync(new ChangePasswordEmailEvent
+            try
             {
-                To = user.Email,
-                Username = user.FullName ?? user.Username,
-                ChangeAt = DateTime.UtcNow,
-                Language = dto.Language ?? "en"
-            });
+                var user = await _repo.GetByIdAsync(userId);
+                if (user == null)
+                    throw new UserNotFoundException(userId);
 
-            await _notificationService.SendNotificationAsync(
-                userId.ToString(),
-                "passwordChangedSuccessfully",
-                "Your password has been changed successfully.",
-                "success"
-            );
+                if (string.IsNullOrWhiteSpace(dto.CurrentPassword))
+                    throw new AuthException("REQUIRED_FIELD_MISSING", "Current password is required");
+                if (dto.CurrentPassword.Length < 6)
+                    throw new AuthException("WEAK_PASSWORD", "Current password must be at least 6 characters");
+                if (string.IsNullOrEmpty(user.PasswordHash) || !_passwordService.VerifyPassword(dto.CurrentPassword, user.PasswordHash))
+                    throw new PasswordMismatchException();
+                if (string.IsNullOrWhiteSpace(dto.NewPassword))
+                    throw new AuthException("REQUIRED_FIELD_MISSING", "New password is required");
+                if (dto.NewPassword.Length < 6)
+                    throw new AuthException("WEAK_PASSWORD", "New password must be at least 6 characters");
+                if (!System.Text.RegularExpressions.Regex.IsMatch(dto.NewPassword, @"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{6,}$"))
+                    throw new AuthException("WEAK_PASSWORD", "New password must contain at least one uppercase letter, one lowercase letter, and one number");
+                if (string.IsNullOrWhiteSpace(dto.ConfirmPassword))
+                    throw new AuthException("REQUIRED_FIELD_MISSING", "Confirm password is required");
+                if (dto.NewPassword != dto.ConfirmPassword)
+                    throw new AuthException("PASSWORD_MISMATCH", "Passwords do not match");
 
-            return true;
+                user.PasswordHash = _passwordService.HashPassword(dto.NewPassword);
+                user.UpdatedAt = DateTime.UtcNow;
+                await _repo.UpdateAsync(user);
+                await _sessionService.RemoveAllUserSessionsAsync(user.Id);
+                await _sessionService.RemoveAllActiveTokensForUserAsync(user.Id);
+                await _sessionService.SetUserLoginStatusAsync(user.Id, false);
+
+                await _emailMessageService.PublishChangePasswordNotificationAsync(new ChangePasswordEmailEvent
+                {
+                    To = user.Email,
+                    Username = user.FullName ?? user.Username,
+                    ChangeAt = DateTime.UtcNow,
+                    Language = dto.Language ?? "en"
+                });
+
+                await _notificationService.SendNotificationAsync(
+                    userId.ToString(),
+                    "passwordChangedSuccessfully",
+                    "Your password has been changed successfully.",
+                    "success"
+                );
+
+                // Audit: CHANGE_PASSWORD
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        var auditEvent = new AuthAuditEvent
+                        {
+                            UserId = user.Id.ToString(),
+                            UserEmail = user.Email,
+                            Action = "CHANGE_PASSWORD",
+                            ResourceId = user.Id.ToString(),
+                            Success = true
+                        };
+                        await _auditHelper.LogEventAsync(auditEvent);
+                    }
+                    catch { }
+                });
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                // Audit failure
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        var user = await _repo.GetByIdAsync(userId);
+                        var auditEvent = new AuthAuditEvent
+                        {
+                            UserId = user?.Id.ToString(),
+                            UserEmail = user?.Email,
+                            Action = "CHANGE_PASSWORD",
+                            ResourceId = user?.Id.ToString(),
+                            Success = false,
+                            ErrorMessage = ex.Message
+                        };
+                        await _auditHelper.LogEventAsync(auditEvent);
+                    }
+                    catch { }
+                });
+                throw;
+            }
         }
 
         private string GenerateResetToken()
@@ -676,6 +917,23 @@ namespace AuthService.Services
             var pngQr = new PngByteQRCode(qrData);
             var qrBytes = pngQr.GetGraphic(20);
             var qrBase64 = Convert.ToBase64String(qrBytes);
+            // Audit: 2FA enable init
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var auditEvent = new AuthAuditEvent
+                    {
+                        UserId = user.Id.ToString(),
+                        UserEmail = user.Email,
+                        Action = "2FA_ENABLE_INIT",
+                        ResourceId = user.Id.ToString(),
+                        Success = true
+                    };
+                    await _auditHelper.LogEventAsync(auditEvent);
+                }
+                catch { }
+            });
             return ($"data:image/png;base64,{qrBase64}", base32Secret);
         }
 
@@ -686,7 +944,27 @@ namespace AuthService.Services
                 return false;
 
             if (!VerifyOtpCode(code, user.TwoFactorSecret))
+            {
+                // Audit: 2FA verify failed
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        var auditEvent = new AuthAuditEvent
+                        {
+                            UserId = user.Id.ToString(),
+                            UserEmail = user.Email,
+                            Action = "2FA_VERIFY",
+                            ResourceId = user.Id.ToString(),
+                            Success = false,
+                            ErrorMessage = "Invalid 2FA code"
+                        };
+                        await _auditHelper.LogEventAsync(auditEvent);
+                    }
+                    catch { }
+                });
                 return false;
+            }
 
             if (!user.TwoFactorEnabled)
             {
@@ -694,7 +972,23 @@ namespace AuthService.Services
                 user.UpdatedAt = DateTime.UtcNow;
                 await _repo.UpdateAsync(user);
             }
-
+            // Audit: 2FA enabled
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var auditEvent = new AuthAuditEvent
+                    {
+                        UserId = user.Id.ToString(),
+                        UserEmail = user.Email,
+                        Action = "2FA_ENABLED",
+                        ResourceId = user.Id.ToString(),
+                        Success = true
+                    };
+                    await _auditHelper.LogEventAsync(auditEvent);
+                }
+                catch { }
+            });
             return true;
         }
 
@@ -705,13 +999,49 @@ namespace AuthService.Services
                 return false;
 
             if (!VerifyOtpCode(code, user.TwoFactorSecret))
+            {
+                // Audit: 2FA disable failed
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        var auditEvent = new AuthAuditEvent
+                        {
+                            UserId = user.Id.ToString(),
+                            UserEmail = user.Email,
+                            Action = "2FA_DISABLED",
+                            ResourceId = user.Id.ToString(),
+                            Success = false,
+                            ErrorMessage = "Invalid 2FA code"
+                        };
+                        await _auditHelper.LogEventAsync(auditEvent);
+                    }
+                    catch { }
+                });
                 return false;
+            }
 
             user.TwoFactorEnabled = false;
             user.TwoFactorSecret = null;
             user.UpdatedAt = DateTime.UtcNow;
             await _repo.UpdateAsync(user);
-
+            // Audit: 2FA disabled
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var auditEvent = new AuthAuditEvent
+                    {
+                        UserId = user.Id.ToString(),
+                        UserEmail = user.Email,
+                        Action = "2FA_DISABLED",
+                        ResourceId = user.Id.ToString(),
+                        Success = true
+                    };
+                    await _auditHelper.LogEventAsync(auditEvent);
+                }
+                catch { }
+            });
             return true;
         }
 

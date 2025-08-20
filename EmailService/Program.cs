@@ -48,6 +48,9 @@ builder.Services.AddScoped<IEmailTemplateService, EmailTemplateService>();
 // Add Logging Service
 builder.Services.AddLoggingService();
 
+// Add Audit Helper
+builder.Services.AddHttpClient<Shared.Services.IAuditHelper, Shared.Services.AuditHelper>();
+
 var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())

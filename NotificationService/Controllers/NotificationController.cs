@@ -14,11 +14,13 @@ namespace NotificationService.Controllers
     {
         private readonly INotificationService _notificationService;
         private readonly ILoggingService _loggingService;
+        private readonly Shared.Services.IAuditHelper _auditHelper;
 
-        public NotificationController(INotificationService notificationService, ILoggingService loggingService)
+        public NotificationController(INotificationService notificationService, ILoggingService loggingService, Shared.Services.IAuditHelper auditHelper)
         {
             _notificationService = notificationService;
             _loggingService = loggingService;
+            _auditHelper = auditHelper;
         }
 
         [HttpGet]
@@ -163,6 +165,33 @@ namespace NotificationService.Controllers
                 
                 await _notificationService.MarkAllAsReadAsync(userId);
                 
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        var auditEvent = new Shared.AuditModels.AuditEvent
+                        {
+                            UserId = userId,
+                            UserEmail = User?.FindFirst(ClaimTypes.Email)?.Value,
+                            Action = "MARK_ALL_NOTIFICATIONS_READ",
+                            ResourceType = "Notification",
+                            ResourceId = userId,
+                            OldValues = null,
+                            NewValues = new { Action = "Marked all notifications as read", UserId = userId },
+                            IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString(),
+                            UserAgent = Request.Headers["User-Agent"].ToString(),
+                            Success = true,
+                            ServiceName = "NotificationService",
+                            RequestId = HttpContext.TraceIdentifier
+                        };
+                        await _auditHelper.LogEventAsync(auditEvent);
+                    }
+                    catch (Exception auditEx)
+                    {
+                        _loggingService.Warning("Failed to log audit event for mark all notifications as read", auditEx);
+                    }
+                });
+
                 _loggingService.Information("MarkAllAsRead completed successfully for User: {UserId}", userId);
                 return Ok();
             }
@@ -195,6 +224,33 @@ namespace NotificationService.Controllers
                     return NotFound();
                 }
 
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        var auditEvent = new Shared.AuditModels.AuditEvent
+                        {
+                            UserId = userId,
+                            UserEmail = User?.FindFirst(ClaimTypes.Email)?.Value,
+                            Action = "DELETE_NOTIFICATION",
+                            ResourceType = "Notification",
+                            ResourceId = id.ToString(),
+                            OldValues = null,
+                            NewValues = new { Action = "Deleted notification", NotificationId = id, UserId = userId },
+                            IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString(),
+                            UserAgent = Request.Headers["User-Agent"].ToString(),
+                            Success = true,
+                            ServiceName = "NotificationService",
+                            RequestId = HttpContext.TraceIdentifier
+                        };
+                        await _auditHelper.LogEventAsync(auditEvent);
+                    }
+                    catch (Exception auditEx)
+                    {
+                        _loggingService.Warning("Failed to log audit event for notification deletion", auditEx);
+                    }
+                });
+
                 _loggingService.Information("DeleteNotification completed successfully for Notification ID: {Id}, User: {UserId}", id, userId);
                 return Ok();
             }
@@ -218,10 +274,62 @@ namespace NotificationService.Controllers
                     return Unauthorized();
                 }
 
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        var auditEvent = new Shared.AuditModels.AuditEvent
+                        {
+                            UserId = userId,
+                            UserEmail = User?.FindFirst(ClaimTypes.Email)?.Value,
+                            Action = "DELETE_ALL_NOTIFICATIONS",
+                            ResourceType = "Notification",
+                            ResourceId = userId,
+                            OldValues = null,
+                            NewValues = new { Action = "Deleted all notifications", UserId = userId },
+                            IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString(),
+                            UserAgent = Request.Headers["User-Agent"].ToString(),
+                            Success = true,
+                            ServiceName = "NotificationService",
+                            RequestId = HttpContext.TraceIdentifier
+                        };
+                        await _auditHelper.LogEventAsync(auditEvent);
+                    }
+                    catch (Exception auditEx)
+                    {
+                        _loggingService.Warning("Failed to log audit event for mark all notifications as read", auditEx);
+                    }
+                });
+
                 _loggingService.Information("DeleteAllNotifications called for User: {UserId}", userId);
                 
                 await _notificationService.DeleteAllNotificationsAsync(userId);
-                
+
+                // Audit: DELETE_ALL_NOTIFICATIONS
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        var auditEvent = new Shared.AuditModels.AuditEvent
+                        {
+                            UserId = userId,
+                            UserEmail = User?.FindFirst(ClaimTypes.Email)?.Value,
+                            Action = "DELETE_ALL_NOTIFICATIONS",
+                            ResourceType = "Notification",
+                            ResourceId = userId,
+                            OldValues = null,
+                            NewValues = new { Action = "DeleteAll", UserId = userId },
+                            IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString(),
+                            UserAgent = Request.Headers["User-Agent"].ToString(),
+                            Success = true,
+                            ServiceName = "NotificationService",
+                            RequestId = HttpContext.TraceIdentifier
+                        };
+                        await _auditHelper.LogEventAsync(auditEvent);
+                    }
+                    catch { }
+                });
+
                 _loggingService.Information("DeleteAllNotifications completed successfully for User: {UserId}", userId);
                 return Ok();
             }
@@ -238,6 +346,34 @@ namespace NotificationService.Controllers
         public async Task<ActionResult> SendToUser([FromBody] CreateNotificationDto dto, [FromQuery] string userId, [FromQuery] string language = "en")
         {
             await _notificationService.SendNotificationToUserAsync(userId, dto, language);
+
+            // Audit: SEND_TO_USER
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var actorId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
+                    var actorEmail = User.FindFirst(ClaimTypes.Email)?.Value ?? string.Empty;
+                    var auditEvent = new Shared.AuditModels.AuditEvent
+                    {
+                        UserId = actorId,
+                        UserEmail = actorEmail,
+                        Action = "SEND_TO_USER",
+                        ResourceType = "Notification",
+                        ResourceId = userId,
+                        OldValues = null,
+                        NewValues = dto,
+                        IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString(),
+                        UserAgent = Request.Headers["User-Agent"].ToString(),
+                        Success = true,
+                        ServiceName = "NotificationService",
+                        RequestId = HttpContext.TraceIdentifier
+                    };
+                    await _auditHelper.LogEventAsync(auditEvent);
+                }
+                catch { }
+            });
+
             return Ok();
         }
 
@@ -246,6 +382,34 @@ namespace NotificationService.Controllers
         {
             var language = User.FindFirst("language")?.Value ?? "en";
             var notification = await _notificationService.CreateNotificationAsync(dto, language);
+
+            // Audit: CREATE_NOTIFICATION
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
+                    var userEmail = User.FindFirst(ClaimTypes.Email)?.Value ?? string.Empty;
+                    var auditEvent = new Shared.AuditModels.AuditEvent
+                    {
+                        UserId = userId,
+                        UserEmail = userEmail,
+                        Action = "CREATE_NOTIFICATION",
+                        ResourceType = "Notification",
+                        ResourceId = notification.Id.ToString(),
+                        OldValues = null,
+                        NewValues = notification,
+                        IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString(),
+                        UserAgent = Request.Headers["User-Agent"].ToString(),
+                        Success = true,
+                        ServiceName = "NotificationService",
+                        RequestId = HttpContext.TraceIdentifier
+                    };
+                    await _auditHelper.LogEventAsync(auditEvent);
+                }
+                catch { }
+            });
+
             return Ok(notification);
         }
 
@@ -254,6 +418,32 @@ namespace NotificationService.Controllers
         public async Task<ActionResult<NotificationDto>> CreateNotificationInternal([FromBody] CreateNotificationDto dto, [FromQuery] string language = "en")
         {
             var notification = await _notificationService.CreateNotificationAsync(dto, language);
+
+            // Audit: CREATE_NOTIFICATION_INTERNAL
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var auditEvent = new Shared.AuditModels.AuditEvent
+                    {
+                        UserId = dto.UserId,
+                        UserEmail = null,
+                        Action = "CREATE_NOTIFICATION_INTERNAL",
+                        ResourceType = "Notification",
+                        ResourceId = notification.Id.ToString(),
+                        OldValues = null,
+                        NewValues = notification,
+                        IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString(),
+                        UserAgent = Request.Headers["User-Agent"].ToString(),
+                        Success = true,
+                        ServiceName = "NotificationService",
+                        RequestId = HttpContext.TraceIdentifier
+                    };
+                    await _auditHelper.LogEventAsync(auditEvent);
+                }
+                catch { }
+            });
+
             return Ok(notification);
         }
 
@@ -262,6 +452,34 @@ namespace NotificationService.Controllers
         public async Task<ActionResult> SendToAll([FromBody] CreateNotificationDto dto, [FromQuery] string language = "en")
         {
             await _notificationService.SendNotificationToAllAsync(dto, language);
+
+            // Audit: SEND_TO_ALL
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var actorId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
+                    var actorEmail = User.FindFirst(ClaimTypes.Email)?.Value ?? string.Empty;
+                    var auditEvent = new Shared.AuditModels.AuditEvent
+                    {
+                        UserId = actorId,
+                        UserEmail = actorEmail,
+                        Action = "SEND_TO_ALL",
+                        ResourceType = "Notification",
+                        ResourceId = "ALL",
+                        OldValues = null,
+                        NewValues = dto,
+                        IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString(),
+                        UserAgent = Request.Headers["User-Agent"].ToString(),
+                        Success = true,
+                        ServiceName = "NotificationService",
+                        RequestId = HttpContext.TraceIdentifier
+                    };
+                    await _auditHelper.LogEventAsync(auditEvent);
+                }
+                catch { }
+            });
+
             return Ok();
         }
 
@@ -270,6 +488,34 @@ namespace NotificationService.Controllers
         public async Task<ActionResult> SendToGroup([FromBody] CreateNotificationDto dto, [FromQuery] List<string> userIds, [FromQuery] string language = "en")
         {
             await _notificationService.SendNotificationToGroupAsync(userIds, dto, language);
+
+            // Audit: SEND_TO_GROUP
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var actorId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
+                    var actorEmail = User.FindFirst(ClaimTypes.Email)?.Value ?? string.Empty;
+                    var auditEvent = new Shared.AuditModels.AuditEvent
+                    {
+                        UserId = actorId,
+                        UserEmail = actorEmail,
+                        Action = "SEND_TO_GROUP",
+                        ResourceType = "Notification",
+                        ResourceId = string.Join(",", userIds ?? new()),
+                        OldValues = null,
+                        NewValues = dto,
+                        IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString(),
+                        UserAgent = Request.Headers["User-Agent"].ToString(),
+                        Success = true,
+                        ServiceName = "NotificationService",
+                        RequestId = HttpContext.TraceIdentifier
+                    };
+                    await _auditHelper.LogEventAsync(auditEvent);
+                }
+                catch { }
+            });
+
             return Ok();
         }
     }

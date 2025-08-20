@@ -6,6 +6,8 @@ using Shared.EmailModels;
 using UserService.Services;
 using System.Text.Json;
 using Shared.LanguageService;
+using Shared.Services;
+using Shared.AuditModels;
 
 namespace UserService.Services;
 
@@ -18,6 +20,7 @@ public class UserService : IUserService
     private readonly IUserCacheService _userCacheService;
     private readonly INotificationService _notificationService;
     private readonly ILanguageService _languageService;
+    private readonly IAuditHelper _auditHelper;
 
             public UserService(
             IUserRepository userRepository, 
@@ -26,7 +29,8 @@ public class UserService : IUserService
             IEmailMessageService emailMessageService,
             IUserCacheService userCacheService,
             INotificationService notificationService,
-            ILanguageService languageService)
+            ILanguageService languageService,
+            IAuditHelper auditHelper)
         {
             _userRepository = userRepository;
             _mapper = mapper;
@@ -35,6 +39,7 @@ public class UserService : IUserService
             _userCacheService = userCacheService;
             _notificationService = notificationService;
             _languageService = languageService;
+            _auditHelper = auditHelper;
         }
 
     public async Task<(List<UserDto> Users, int TotalCount, int TotalPages)> GetUsersAsync(UserQueryDto query)
@@ -206,6 +211,16 @@ public class UserService : IUserService
         if (user == null)
             return false;
 
+        var oldValues = new
+        {
+            Email = user.Email,
+            Username = user.Username,
+            FullName = user.FullName,
+            PhoneNumber = user.PhoneNumber,
+            Avatar = user.ProfilePicture,
+            Status = user.Status.ToString()
+        };
+
         var originalEmail = user.Email;
         var originalUsername = user.Username;
 
@@ -248,6 +263,47 @@ public class UserService : IUserService
                 "info",
                 notificationData
             );
+
+            var newValues = new
+            {
+                Email = updatedUser.Email,
+                Username = updatedUser.Username,
+                FullName = updatedUser.FullName,
+                PhoneNumber = updatedUser.PhoneNumber,
+                Avatar = updatedUser.ProfilePicture,
+                Status = updatedUser.Status.ToString()
+            };
+
+            var auditEvent = new UserAuditEvent
+            {
+                UserId = updatedUser.Id.ToString(),
+                UserEmail = updatedUser.Email,
+                Action = "UPDATE_USER",
+                ResourceId = updatedUser.Id.ToString(),
+                OldValues = oldValues,
+                NewValues = newValues,
+                Success = true,
+                Metadata = new Dictionary<string, object>
+                {
+                    { "EmailChanged", originalEmail != updatedUser.Email },
+                    { "UsernameChanged", originalUsername != updatedUser.Username },
+                    { "Language", language }
+                }
+            };
+
+            // Fire-and-forget audit logging
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await _auditHelper.LogEventAsync(auditEvent);
+                }
+                catch (Exception ex)
+                {
+                    // Log warning but don't throw to avoid affecting business logic
+                    Console.WriteLine($"Failed to log audit event for user update: {ex.Message}");
+                }
+            });
         }
 
         return updatedUser != null;
@@ -279,6 +335,33 @@ public class UserService : IUserService
             Language = language
         });
 
+        var auditEvent = new UserAuditEvent
+        {
+            UserId = user.Id.ToString(),
+            UserEmail = user.Email,
+            Action = "DELETE_USER",
+            ResourceId = user.Id.ToString(),
+            Success = true,
+            Metadata = new Dictionary<string, object>
+            {
+                { "DeletedAt", DateTime.UtcNow },
+                { "Reason", "Account deactivated by administrator" },
+                { "Language", language }
+            }
+        };
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await _auditHelper.LogEventAsync(auditEvent);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to log audit event for user deletion: {ex.Message}");
+            }
+        });
+
         return true;
     }
 
@@ -292,7 +375,7 @@ public class UserService : IUserService
         if (result)
         {
             await _userCacheService.SetUserAsync(user, TimeSpan.FromMinutes(30));
-            
+
             await _emailMessageService.PublishRestoreAccountNotificationAsync(new RestoreAccountEmailEvent
             {
                 To = user.Email,
@@ -301,6 +384,33 @@ public class UserService : IUserService
                 Reason = "Account restored by administrator",
                 Language = language
             });
+            
+            var auditEvent = new UserAuditEvent
+        {
+            UserId = user.Id.ToString(),
+            UserEmail = user.Email,
+            Action = "RESTORE_USER",
+            ResourceId = user.Id.ToString(),
+            Success = true,
+            Metadata = new Dictionary<string, object>
+            {
+                { "RestoredAt", DateTime.UtcNow },
+                { "Reason", "Account restored by administrator" },
+                { "Language", language }
+            }
+        };
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await _auditHelper.LogEventAsync(auditEvent);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to log audit event for user restoration: {ex.Message}");
+            }
+        });
         }
         return result;
     }

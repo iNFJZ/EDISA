@@ -8,6 +8,9 @@ using System.Text.Json;
 using System.Text;
 using Shared.EmailModels;
 using System.Security.Cryptography;
+using Shared.AuditModels;
+using Shared.Services;
+using System.Net.Http;
 
 namespace AuthService.Services
 {
@@ -20,6 +23,7 @@ namespace AuthService.Services
         private readonly ILogger<GoogleAuthService> _logger;
         private readonly IConfiguration _config;
         private readonly HttpClient _httpClient;
+        private readonly IAuditHelper _auditHelper;
 
         public GoogleAuthService(
             IUserRepository userRepository,
@@ -28,7 +32,8 @@ namespace AuthService.Services
             IEmailMessageService emailMessageService,
             IConfiguration config,
             HttpClient httpClient,
-            ILogger<GoogleAuthService> logger)
+            ILogger<GoogleAuthService> logger,
+            IAuditHelper auditHelper)
         {
             _userRepository = userRepository;
             _sessionService = sessionService;
@@ -37,6 +42,7 @@ namespace AuthService.Services
             _config = config;
             _httpClient = httpClient;
             _logger = logger;
+            _auditHelper = auditHelper;
         }
 
         public async Task<GoogleUserInfo> GetGoogleUserInfoAsync(string accessToken)
@@ -75,6 +81,26 @@ namespace AuthService.Services
             catch (Exception ex) when (ex is not InvalidGoogleTokenException)
             {
                 throw new InvalidGoogleTokenException("Failed to verify Google token");
+            }
+            catch (Exception ex)
+            {
+                // Audit: google login failed (unexpected)
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        var auditEvent = new AuthAuditEvent
+                        {
+                            UserEmail = null,
+                            Action = "GOOGLE_LOGIN_FAILED",
+                            Success = false,
+                            ErrorMessage = ex.Message
+                        };
+                        await _auditHelper.LogEventAsync(auditEvent);
+                    }
+                    catch { }
+                });
+                throw;
             }
         }
 
@@ -220,18 +246,71 @@ namespace AuthService.Services
 
                 if (existingUser.TwoFactorEnabled && !string.IsNullOrEmpty(existingUser.TwoFactorSecret))
                 {
-                    if (string.IsNullOrWhiteSpace(dto.OtpCode))
+                    if (string.IsNullOrWhiteSpace(dto?.OtpCode))
                     {
                         _logger.LogInformation("2FA enabled but no OTP code provided for user {UserId}", existingUser.Id);
+                        // Audit: google login requires 2FA
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                var auditEvent = new AuthAuditEvent
+                                {
+                                    UserId = existingUser.Id.ToString(),
+                                    UserEmail = existingUser.Email,
+                                    Action = "GOOGLE_LOGIN_2FA_REQUIRED",
+                                    ResourceId = existingUser.Id.ToString(),
+                                    Success = false,
+                                    ErrorMessage = "2FA code required"
+                                };
+                                await _auditHelper.LogEventAsync(auditEvent);
+                            }
+                            catch { }
+                        });
                         return (null, true, existingUser.Id, "2FA code required");
                     }
                     
-                    if (!VerifyOtpCode(dto.OtpCode, existingUser.TwoFactorSecret))
+                    var otpCode = dto.OtpCode ?? string.Empty;
+                    if (!VerifyOtpCode(otpCode, existingUser.TwoFactorSecret))
                     {
                         _logger.LogWarning("Invalid OTP code for user {UserId}", existingUser.Id);
+                        // Audit: google login 2FA failed
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                var auditEvent = new AuthAuditEvent
+                                {
+                                    UserId = existingUser.Id.ToString(),
+                                    UserEmail = existingUser.Email,
+                                    Action = "GOOGLE_LOGIN_2FA_FAILED",
+                                    ResourceId = existingUser.Id.ToString(),
+                                    Success = false,
+                                    ErrorMessage = "Invalid 2FA code"
+                                };
+                                await _auditHelper.LogEventAsync(auditEvent);
+                            }
+                            catch { }
+                        });
                         return (null, true, existingUser.Id, "Invalid 2FA code");
                     }
                     _logger.LogInformation("OTP verification successful for user {UserId}", existingUser.Id);
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            var auditEvent = new AuthAuditEvent
+                            {
+                                UserId = existingUser.Id.ToString(),
+                                UserEmail = existingUser.Email,
+                                Action = "GOOGLE_LOGIN_2FA_VERIFIED",
+                                ResourceId = existingUser.Id.ToString(),
+                                Success = true
+                            };
+                            await _auditHelper.LogEventAsync(auditEvent);
+                        }
+                        catch { }
+                    });
                 }
 
                 var token = _jwtService.GenerateToken(existingUser, dto?.Language ?? "en");
@@ -246,10 +325,50 @@ namespace AuthService.Services
                 existingUser.LastLoginAt = DateTime.UtcNow;
                 await _userRepository.UpdateAsync(existingUser);
 
+                // Audit: google login success
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        var auditEvent = new AuthAuditEvent
+                        {
+                            UserId = existingUser.Id.ToString(),
+                            UserEmail = existingUser.Email,
+                            Action = "GOOGLE_LOGIN",
+                            ResourceId = existingUser.Id.ToString(),
+                            Success = true,
+                            Metadata = new Dictionary<string, object>
+                            {
+                                { "LoginProvider", "Google" },
+                                { "TwoFactorUsed", existingUser.TwoFactorEnabled && !string.IsNullOrEmpty(existingUser.TwoFactorSecret) && !string.IsNullOrWhiteSpace(dto?.OtpCode) },
+                                { "Language", dto?.Language ?? "en" }
+                            }
+                        };
+                        await _auditHelper.LogEventAsync(auditEvent);
+                    }
+                    catch { }
+                });
+
                 return (token, false, existingUser.Id, "Login successful");
             }
-            catch
+            catch (Exceptions.InvalidGoogleTokenException ex)
             {
+                // Audit: google login failed
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        var auditEvent = new AuthAuditEvent
+                        {
+                            UserEmail = null,
+                            Action = "GOOGLE_LOGIN_FAILED",
+                            Success = false,
+                            ErrorMessage = ex.Message
+                        };
+                        await _auditHelper.LogEventAsync(auditEvent);
+                    }
+                    catch { }
+                });
                 throw;
             }
         }
