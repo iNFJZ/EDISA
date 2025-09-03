@@ -19,10 +19,12 @@ COPY NotificationService/NotificationService.csproj NotificationService/
 COPY WorkerService/WorkerService.csproj WorkerService/
 COPY AuditService/AuditService.csproj AuditService/
 COPY Shared/Shared.csproj Shared/
+COPY GrpcGreeter/GrpcGreeter.csproj GrpcGreeter/
 COPY nuget.config ./
 
 # Restore dependencies for all projects
 RUN dotnet restore "Shared/Shared.csproj" && \
+    dotnet restore "GrpcGreeter/GrpcGreeter.csproj" && \
     dotnet restore "AuthService/AuthService.csproj" && \
     dotnet restore "FileService/FileService.csproj" && \
     dotnet restore "GatewayApi/GatewayApi.csproj" && \

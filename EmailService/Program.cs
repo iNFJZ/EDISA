@@ -7,12 +7,16 @@ using Shared.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Configure Kestrel to listen on port 80
+// Configure Kestrel to listen on port 80 for HTTP/1.1 and HTTP/2, and port 5005 for HTTP/2 (gRPC)
 builder.WebHost.ConfigureKestrel(serverOptions =>
 {
     serverOptions.ListenAnyIP(80, listenOptions =>
     {
         listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2;
+    });
+    serverOptions.ListenAnyIP(5005, listenOptions =>
+    {
+        listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http2;
     });
 });
 
@@ -20,6 +24,8 @@ builder.WebHost.ConfigureKestrel(serverOptions =>
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+builder.Services.AddGrpc();
 
 // Add CORS
 builder.Services.AddCors(options =>
@@ -78,5 +84,6 @@ app.UseCors("AllowFrontend");
 app.UseHttpsRedirection();
 app.UseAuthorization();
 app.MapControllers();
+app.MapGrpcService<EmailService.Services.EmailGrpcService>();
 
 app.Run();
