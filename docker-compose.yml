@@ -94,7 +94,7 @@ services:
     working_dir: /app/AuthService
     ports:
       - "5001:80"
-      - "5003:5003"
+      - "5013:5003"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:80
@@ -169,6 +169,7 @@ services:
     working_dir: /app/EmailService
     ports:
       - "5007:80"
+      - "5010:5005"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=email_db;Username=postgres;Password=123456
@@ -190,6 +191,7 @@ services:
     working_dir: /app/UserService
     ports:
       - "5005:80"
+      - "5011:5004"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=auth_db;Username=postgres;Password=123456
@@ -218,6 +220,7 @@ services:
     working_dir: /app/NotificationService
     ports:
       - "5006:80"
+      - "5012:5011"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:80

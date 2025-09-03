@@ -528,6 +528,30 @@ namespace AuthService.Services
                 }
             };
 
+            try
+            {
+                if (!string.IsNullOrWhiteSpace(dto.UserAgent))
+                {
+                    var dd = new DeviceDetectorNET.DeviceDetector(dto.UserAgent);
+                    dd.Parse();
+                    var clientInfo = dd.GetClient();
+                    var osInfo = dd.GetOs();
+                    var deviceName = dd.GetDeviceName();
+                    var brand = dd.GetBrandName();
+                    var model = dd.GetModel();
+
+                    auditEvent.Metadata!["DeviceBrand"] = brand ?? string.Empty;
+                    auditEvent.Metadata!["DeviceModel"] = model ?? string.Empty;
+                    auditEvent.Metadata!["DeviceName"] = deviceName ?? string.Empty;
+                    auditEvent.Metadata!["ClientName"] = clientInfo.Match?.Name ?? string.Empty;
+                    auditEvent.Metadata!["ClientType"] = clientInfo.Match?.Type ?? string.Empty;
+                    auditEvent.Metadata!["ClientVersion"] = clientInfo.Match?.Version ?? string.Empty;
+                    auditEvent.Metadata!["OsName"] = osInfo.Match?.Name ?? string.Empty;
+                    auditEvent.Metadata!["OsVersion"] = osInfo.Match?.Version ?? string.Empty;
+                }
+            }
+            catch { }
+
             _ = Task.Run(async () =>
             {
                 try

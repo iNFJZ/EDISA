@@ -1,6 +1,15 @@
 {
   "Routes": [
     {
+      "DownstreamPathTemplate": "/api/Audit/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        { "Host": "audit-service", "Port": 80 }
+      ],
+      "UpstreamPathTemplate": "/api/Audit/{everything}",
+      "UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE", "HEAD" ]
+    },
+    {
       "DownstreamPathTemplate": "/api/Auth/{everything}",
       "DownstreamScheme": "http",
       "DownstreamHostAndPorts": [

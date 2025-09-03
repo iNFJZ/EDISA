@@ -1,4 +1,3 @@
-using GrpcGreeter.Services;
 using Grpc.AspNetCore.Server;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -28,9 +27,6 @@ var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
 app.MapControllers();
-app.MapGrpcService<SimpleFileGrpcService>();
-app.MapGrpcService<SimpleEmailGrpcService>();
-app.MapGrpcService<SimpleAuthGrpcService>();
 
 if (app.Environment.IsDevelopment())
 {
