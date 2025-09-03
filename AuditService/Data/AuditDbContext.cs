@@ -10,6 +10,7 @@ public class AuditDbContext : DbContext
     }
 
     public DbSet<AuditLog> AuditLogs { get; set; }
+    public DbSet<StoredEvent> AuditEvents { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -103,6 +104,67 @@ public class AuditDbContext : DbContext
             
             entity.HasIndex(e => e.RequestId)
                 .HasDatabaseName("idx_audit_logs_request_id");
+        });
+
+        modelBuilder.Entity<StoredEvent>(entity =>
+        {
+            entity.ToTable("audit_events");
+
+            entity.HasKey(e => e.Id);
+
+            entity.Property(e => e.Id)
+                .HasColumnName("id")
+                .UseIdentityAlwaysColumn();
+
+            entity.Property(e => e.AggregateType)
+                .HasColumnName("aggregate_type")
+                .IsRequired()
+                .HasMaxLength(100);
+
+            entity.Property(e => e.AggregateId)
+                .HasColumnName("aggregate_id")
+                .HasMaxLength(100);
+
+            entity.Property(e => e.EventType)
+                .HasColumnName("event_type")
+                .IsRequired()
+                .HasMaxLength(100);
+
+            entity.Property(e => e.EventData)
+                .HasColumnName("event_data")
+                .IsRequired();
+
+            entity.Property(e => e.Metadata)
+                .HasColumnName("metadata");
+
+            entity.Property(e => e.Version)
+                .HasColumnName("version");
+
+            entity.Property(e => e.CreatedAt)
+                .HasColumnName("created_at")
+                .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.Property(e => e.CorrelationId)
+                .HasColumnName("correlation_id")
+                .HasMaxLength(100);
+
+            entity.Property(e => e.CausationId)
+                .HasColumnName("causation_id")
+                .HasMaxLength(100);
+
+            entity.Property(e => e.UserId)
+                .HasColumnName("user_id")
+                .HasMaxLength(100);
+
+            entity.Property(e => e.UserEmail)
+                .HasColumnName("user_email")
+                .HasMaxLength(255);
+
+            entity.HasIndex(e => new { e.AggregateType, e.AggregateId, e.Version })
+                .HasDatabaseName("idx_audit_events_aggregate_version");
+
+            entity.HasIndex(e => e.CreatedAt)
+                .HasDatabaseName("idx_audit_events_created_at");
         });
     }
 }
