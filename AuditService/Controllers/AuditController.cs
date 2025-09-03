@@ -71,38 +71,7 @@ public class AuditController : ControllerBase
         }
     }
 
-    [HttpGet("logs")]
-    public async Task<ActionResult<object>> GetAuditLogs([FromQuery] AuditQueryDto query)
-    {
-        try
-        {
-            var (logs, totalCount) = await _auditService.GetAuditLogsAsync(query);
 
-            return Ok(new
-            {
-                Success = true,
-                Message = "Audit logs retrieved successfully",
-                Data = logs,
-                Pagination = new
-                {
-                    Page = query.Page,
-                    PageSize = query.PageSize,
-                    TotalCount = totalCount,
-                    TotalPages = (int)Math.Ceiling((double)totalCount / query.PageSize)
-                }
-            });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting audit logs");
-            return StatusCode(500, new
-            {
-                Success = false,
-                Message = "Internal server error",
-                Error = ex.Message
-            });
-        }
-    }
 
     [HttpGet("logs/{id}")]
     public async Task<ActionResult<object>> GetAuditLogById(long id)
@@ -179,8 +148,8 @@ public class AuditController : ControllerBase
         }
     }
 
-    [HttpGet("logs/action/{action}")]
-    public async Task<ActionResult<object>> GetAuditLogsByAction(string action, [FromQuery] int page = 1, [FromQuery] int pageSize = 50)
+    [HttpGet("logs")]
+    public async Task<ActionResult<object>> GetAuditLogsByAction([FromQuery] string? action = null, [FromQuery] int page = 1, [FromQuery] int pageSize = 50)
     {
         try
         {
@@ -193,10 +162,14 @@ public class AuditController : ControllerBase
 
             var (logs, totalCount) = await _auditService.GetAuditLogsAsync(query);
 
+            var message = !string.IsNullOrEmpty(action) 
+                ? $"Audit logs for action '{action}' retrieved successfully"
+                : "Audit logs retrieved successfully";
+
             return Ok(new
             {
                 Success = true,
-                Message = "Action audit logs retrieved successfully",
+                Message = message,
                 Data = logs,
                 Pagination = new
                 {
@@ -209,7 +182,10 @@ public class AuditController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting audit logs for action: {Action}", action);
+            var errorMessage = !string.IsNullOrEmpty(action)
+                ? $"Error getting audit logs for action: {action}"
+                : "Error getting audit logs";
+            _logger.LogError(ex, errorMessage);
             return StatusCode(500, new
             {
                 Success = false,

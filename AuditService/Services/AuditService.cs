@@ -42,8 +42,38 @@ public class AuditService : IAuditService
                 CreatedAt = auditEvent.Timestamp.Kind == DateTimeKind.Utc ? auditEvent.Timestamp : DateTime.SpecifyKind(auditEvent.Timestamp, DateTimeKind.Utc)
             };
 
+            // Append to event store first, then update read model in the same transaction
+            using var tx = await _context.Database.BeginTransactionAsync();
+
+            var currentVersion = 0;
+            if (!string.IsNullOrEmpty(auditEvent.ResourceId))
+            {
+                currentVersion = await _context.AuditEvents
+                    .Where(e => e.AggregateType == auditEvent.ResourceType && e.AggregateId == auditEvent.ResourceId)
+                    .OrderByDescending(e => e.Version)
+                    .Select(e => e.Version)
+                    .FirstOrDefaultAsync();
+            }
+
+            var storedEvent = new StoredEvent
+            {
+                AggregateType = auditEvent.ResourceType,
+                AggregateId = auditEvent.ResourceId,
+                EventType = auditEvent.Action,
+                EventData = auditEvent.GetNewValuesJson() ?? auditEvent.GetOldValuesJson() ?? "{}",
+                Metadata = auditEvent.GetMetadataJson(),
+                Version = currentVersion + 1,
+                CreatedAt = auditLog.CreatedAt,
+                CorrelationId = auditEvent.RequestId,
+                CausationId = auditEvent.SessionId,
+                UserId = auditEvent.UserId,
+                UserEmail = auditEvent.UserEmail
+            };
+
+            _context.AuditEvents.Add(storedEvent);
             _context.AuditLogs.Add(auditLog);
             await _context.SaveChangesAsync();
+            await tx.CommitAsync();
 
             _logger.LogInformation("Audit event logged successfully: {Action} on {ResourceType} by {UserId}", 
                 auditEvent.Action, auditEvent.ResourceType, auditEvent.UserId);
@@ -62,6 +92,8 @@ public class AuditService : IAuditService
     {
         try
         {
+            using var tx = await _context.Database.BeginTransactionAsync();
+
             var auditLogs = auditEvents.Select(ae => new AuditLog
             {
                 UserId = ae.UserId,
@@ -82,8 +114,56 @@ public class AuditService : IAuditService
                 CreatedAt = ae.Timestamp.Kind == DateTimeKind.Utc ? ae.Timestamp : DateTime.SpecifyKind(ae.Timestamp, DateTimeKind.Utc)
             }).ToList();
 
+            var pairs = auditEvents
+                .Where(ae => !string.IsNullOrEmpty(ae.ResourceId))
+                .Select(ae => new { ae.ResourceType, ae.ResourceId })
+                .Distinct()
+                .ToList();
+
+            var versionMap = new Dictionary<(string, string), int>();
+            foreach (var p in pairs)
+            {
+                var max = await _context.AuditEvents
+                    .Where(e => e.AggregateType == p.ResourceType && e.AggregateId == p.ResourceId)
+                    .OrderByDescending(e => e.Version)
+                    .Select(e => e.Version)
+                    .FirstOrDefaultAsync();
+                versionMap[(p.ResourceType, p.ResourceId!)] = max;
+            }
+
+            var storedEvents = new List<StoredEvent>();
+            foreach (var ae in auditEvents)
+            {
+                var createdAt = auditLogs.First(al => al.RequestId == ae.RequestId && al.Action == ae.Action && al.ResourceId == ae.ResourceId).CreatedAt;
+                int nextVersion = 1;
+                if (!string.IsNullOrEmpty(ae.ResourceId))
+                {
+                    var key = (ae.ResourceType, ae.ResourceId!);
+                    if (!versionMap.ContainsKey(key)) versionMap[key] = 0;
+                    versionMap[key] = versionMap[key] + 1;
+                    nextVersion = versionMap[key];
+                }
+
+                storedEvents.Add(new StoredEvent
+                {
+                    AggregateType = ae.ResourceType,
+                    AggregateId = ae.ResourceId,
+                    EventType = ae.Action,
+                    EventData = ae.GetNewValuesJson() ?? ae.GetOldValuesJson() ?? "{}",
+                    Metadata = ae.GetMetadataJson(),
+                    Version = nextVersion,
+                    CreatedAt = createdAt,
+                    CorrelationId = ae.RequestId,
+                    CausationId = ae.SessionId,
+                    UserId = ae.UserId,
+                    UserEmail = ae.UserEmail
+                });
+            }
+
+            _context.AuditEvents.AddRange(storedEvents);
             _context.AuditLogs.AddRange(auditLogs);
             await _context.SaveChangesAsync();
+            await tx.CommitAsync();
 
             _logger.LogInformation("Batch audit events logged successfully: {Count} events", auditLogs.Count);
 
@@ -94,6 +174,46 @@ public class AuditService : IAuditService
             _logger.LogError(ex, "Error logging batch audit events");
             throw;
         }
+    }
+
+    public async Task<StoredEvent> AppendEventAsync(string aggregateType, string? aggregateId, string eventType, object eventData, Dictionary<string, object>? metadata = null, string? correlationId = null, string? causationId = null, string? userId = null, string? userEmail = null)
+    {
+        var currentVersion = 0;
+        if (!string.IsNullOrEmpty(aggregateId))
+        {
+            currentVersion = await _context.AuditEvents
+                .Where(e => e.AggregateType == aggregateType && e.AggregateId == aggregateId)
+                .OrderByDescending(e => e.Version)
+                .Select(e => e.Version)
+                .FirstOrDefaultAsync();
+        }
+
+        var stored = new StoredEvent
+        {
+            AggregateType = aggregateType,
+            AggregateId = aggregateId,
+            EventType = eventType,
+            EventData = System.Text.Json.JsonSerializer.Serialize(eventData),
+            Metadata = metadata != null ? System.Text.Json.JsonSerializer.Serialize(metadata) : null,
+            Version = currentVersion + 1,
+            CreatedAt = DateTime.UtcNow,
+            CorrelationId = correlationId,
+            CausationId = causationId,
+            UserId = userId,
+            UserEmail = userEmail
+        };
+
+        _context.AuditEvents.Add(stored);
+        await _context.SaveChangesAsync();
+        return stored;
+    }
+
+    public async Task<IReadOnlyList<StoredEvent>> GetEventsAsync(string aggregateType, string aggregateId, int fromVersion = 0)
+    {
+        return await _context.AuditEvents
+            .Where(e => e.AggregateType == aggregateType && e.AggregateId == aggregateId && e.Version >= fromVersion)
+            .OrderBy(e => e.Id)
+            .ToListAsync();
     }
 
     public async Task<(IEnumerable<AuditLog> Logs, int TotalCount)> GetAuditLogsAsync(AuditQueryDto query)
